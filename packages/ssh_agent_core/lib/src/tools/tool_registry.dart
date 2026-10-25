@@ -37,8 +37,8 @@ class ToolRegistry {
     List<ToolDefinition>? tools,
     Set<ToolCategory>? enabledCategories,
     this.disabledTools = const {},
-  })  : tools = tools ?? allTools,
-        enabledCategories = enabledCategories ?? ToolCategory.values.toSet();
+  }) : tools = tools ?? allTools,
+       enabledCategories = enabledCategories ?? ToolCategory.values.toSet();
 
   final List<ToolDefinition> tools;
   final Set<ToolCategory> enabledCategories;
@@ -46,16 +46,17 @@ class ToolRegistry {
 
   /// Tools offered for the given session.
   List<ToolDefinition> available(RemoteSession? session) => [
-        for (final tool in tools)
-          if (enabledCategories.contains(tool.category) &&
-              !disabledTools.contains(tool.name) &&
-              (!tool.requiresUserSwitching || (session?.canSwitchUser ?? false)))
-            tool,
-      ];
+    for (final tool in tools)
+      if (enabledCategories.contains(tool.category) &&
+          !disabledTools.contains(tool.name) &&
+          (!tool.requiresUserSwitching || (session?.canSwitchUser ?? false)))
+        tool,
+  ];
 
   /// Function declarations for the model.
-  List<Map<String, Object?>> schemas(RemoteSession? session) =>
-      [for (final tool in available(session)) tool.toFunctionSchema()];
+  List<Map<String, Object?>> schemas(RemoteSession? session) => [
+    for (final tool in available(session)) tool.toFunctionSchema(),
+  ];
 
   ToolDefinition? find(String name) {
     for (final tool in tools) {
@@ -85,8 +86,10 @@ class ToolRegistry {
       tool: tool,
       args: args,
       script: script,
-      fullCommand: session.buildCommand(script,
-          asUser: runAs == session.loginUser ? null : runAs),
+      fullCommand: session.buildCommand(
+        script,
+        asUser: runAs == session.loginUser ? null : runAs,
+      ),
       runAs: runAs,
       cwd: session.cwd,
     );
@@ -125,7 +128,8 @@ class ToolRegistry {
 
   void _annotate(PreparedToolCall call, ToolResult result) {
     if (call.tool.binaryCheck && result.stdout.contains('\u0000')) {
-      result.stdout = '[Binary content (${result.stdout.length} bytes) is not '
+      result.stdout =
+          '[Binary content (${result.stdout.length} bytes) is not '
           'shown. Use binary_peek or file_type.]';
     }
     final notes = <String>[
@@ -173,7 +177,9 @@ class ToolRegistry {
     }
     if (stderr.isNotEmpty) {
       out.writeln('[stderr]');
-      out.writeln(truncateMiddle(stderr, (maxChars * 0.2).round().clamp(400, 4000)));
+      out.writeln(
+        truncateMiddle(stderr, (maxChars * 0.2).round().clamp(400, 4000)),
+      );
     }
     return out.toString().trimRight();
   }

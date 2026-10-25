@@ -27,21 +27,21 @@ enum ThinkingMode {
 
   /// Value of the Ollama `think` field (null = do not send).
   Object? get ollamaValue => switch (this) {
-        ThinkingMode.auto => null,
-        ThinkingMode.off => false,
-        ThinkingMode.on => true,
-        ThinkingMode.low => 'low',
-        ThinkingMode.medium => 'medium',
-        ThinkingMode.high => 'high',
-      };
+    ThinkingMode.auto => null,
+    ThinkingMode.off => false,
+    ThinkingMode.on => true,
+    ThinkingMode.low => 'low',
+    ThinkingMode.medium => 'medium',
+    ThinkingMode.high => 'high',
+  };
 
   /// OpenAI `reasoning_effort` (null = do not send).
   String? get reasoningEffort => switch (this) {
-        ThinkingMode.low => 'low',
-        ThinkingMode.medium => 'medium',
-        ThinkingMode.high => 'high',
-        _ => null,
-      };
+    ThinkingMode.low => 'low',
+    ThinkingMode.medium => 'medium',
+    ThinkingMode.high => 'high',
+    _ => null,
+  };
 }
 
 /// Settings of the local model server.
@@ -88,37 +88,37 @@ class LlmConfig {
     ThinkingMode? thinking,
     String? keepAlive,
     Duration? idleTimeout,
-  }) =>
-      LlmConfig(
-        provider: provider ?? this.provider,
-        baseUrl: baseUrl ?? this.baseUrl,
-        model: model ?? this.model,
-        apiKey: apiKey ?? this.apiKey,
-        temperature: temperature ?? this.temperature,
-        contextLength: contextLength ?? this.contextLength,
-        thinking: thinking ?? this.thinking,
-        keepAlive: keepAlive ?? this.keepAlive,
-        idleTimeout: idleTimeout ?? this.idleTimeout,
-      );
+  }) => LlmConfig(
+    provider: provider ?? this.provider,
+    baseUrl: baseUrl ?? this.baseUrl,
+    model: model ?? this.model,
+    apiKey: apiKey ?? this.apiKey,
+    temperature: temperature ?? this.temperature,
+    contextLength: contextLength ?? this.contextLength,
+    thinking: thinking ?? this.thinking,
+    keepAlive: keepAlive ?? this.keepAlive,
+    idleTimeout: idleTimeout ?? this.idleTimeout,
+  );
 
   Map<String, Object?> toJson() => {
-        'provider': provider.name,
-        'baseUrl': baseUrl,
-        'model': model,
-        'temperature': temperature,
-        'contextLength': contextLength,
-        'thinking': thinking.name,
-        'keepAlive': keepAlive,
-        'idleTimeoutSeconds': idleTimeout.inSeconds,
-      };
+    'provider': provider.name,
+    'baseUrl': baseUrl,
+    'model': model,
+    'temperature': temperature,
+    'contextLength': contextLength,
+    'thinking': thinking.name,
+    'keepAlive': keepAlive,
+    'idleTimeoutSeconds': idleTimeout.inSeconds,
+  };
 
   /// [apiKey] is a secret and is stored separately by the app.
   factory LlmConfig.fromJson(Map<String, Object?> json, {String? apiKey}) {
     const d = LlmConfig();
     return LlmConfig(
       provider: LlmProvider.values.firstWhere(
-          (p) => p.name == json['provider'],
-          orElse: () => d.provider),
+        (p) => p.name == json['provider'],
+        orElse: () => d.provider,
+      ),
       baseUrl: json['baseUrl'] as String? ?? d.baseUrl,
       model: json['model'] as String? ?? d.model,
       apiKey: apiKey,
@@ -126,12 +126,15 @@ class LlmConfig {
       contextLength:
           (json['contextLength'] as num?)?.toInt() ?? d.contextLength,
       thinking: ThinkingMode.values.firstWhere(
-          (t) => t.name == json['thinking'],
-          orElse: () => d.thinking),
+        (t) => t.name == json['thinking'],
+        orElse: () => d.thinking,
+      ),
       keepAlive: json['keepAlive'] as String? ?? d.keepAlive,
       idleTimeout: Duration(
-          seconds: (json['idleTimeoutSeconds'] as num?)?.toInt() ??
-              d.idleTimeout.inSeconds),
+        seconds:
+            (json['idleTimeoutSeconds'] as num?)?.toInt() ??
+            d.idleTimeout.inSeconds,
+      ),
     );
   }
 }

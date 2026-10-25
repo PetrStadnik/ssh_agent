@@ -100,8 +100,12 @@ String limitLines(int maxLines) =>
     '"... [%d more lines not shown]\\n", NR-m}\'';
 
 /// Validates a value against [pattern] and returns it quoted.
-String shIdentifier(String value, RegExp pattern, String parameter,
-    {required String hint}) {
+String shIdentifier(
+  String value,
+  RegExp pattern,
+  String parameter, {
+  required String hint,
+}) {
   rejectControlCharacters(value, parameter);
   if (!pattern.hasMatch(value)) {
     throw ToolArgumentException('Invalid value for "$parameter": $hint');
@@ -110,13 +114,17 @@ String shIdentifier(String value, RegExp pattern, String parameter,
 }
 
 /// Linux user or group name (also allows `user@domain` used by SSSD/AD).
-final RegExp userNamePattern = RegExp(r'^[A-Za-z0-9_][A-Za-z0-9_.@-]{0,63}\$?$');
+final RegExp userNamePattern = RegExp(
+  r'^[A-Za-z0-9_][A-Za-z0-9_.@-]{0,63}\$?$',
+);
 
 /// systemd unit / service name.
 final RegExp unitNamePattern = RegExp(r'^[A-Za-z0-9@._:\\-]{1,128}$');
 
 /// Docker / Podman container or image reference.
-final RegExp containerNamePattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9_./:@-]{0,199}$');
+final RegExp containerNamePattern = RegExp(
+  r'^[A-Za-z0-9][A-Za-z0-9_./:@-]{0,199}$',
+);
 
 /// Executable name for `which`.
 final RegExp commandNamePattern = RegExp(r'^[A-Za-z0-9._+-]{1,100}$');

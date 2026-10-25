@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core:
+    name: Core – analyze, unit and integration tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/ssh_agent_core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: dart pub get
+      - run: dart analyze --fatal-infos
+      - run: dart test --exclude-tags integration
+      - name: Start a local SSH server for integration tests
+        working-directory: .
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openssh-server acl lsof file >/dev/null
+          sudo useradd -m -s /bin/bash agent
+          echo 'agent:agentpass' | sudo chpasswd
+          echo 'root:rootpass' | sudo chpasswd
+          sudo useradd -m -s /bin/bash other
+          echo 'agent ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/agent >/dev/null
+          ssh-keygen -t ed25519 -N '' -f "$RUNNER_TEMP/agent_key" -q
+          ssh-keygen -t ed25519 -N 'keypass' -f "$RUNNER_TEMP/agent_key_enc" -q
+          sudo install -d -m 700 -o agent -g agent /home/agent/.ssh
+          cat "$RUNNER_TEMP/agent_key.pub" "$RUNNER_TEMP/agent_key_enc.pub" | sudo tee /home/agent/.ssh/authorized_keys >/dev/null
+          sudo chown agent:agent /home/agent/.ssh/authorized_keys
+          sudo chmod 600 /home/agent/.ssh/authorized_keys
+          sudo mkdir -p /srv/data /run/sshd
+          echo 'secret=42' | sudo tee /srv/data/app.conf >/dev/null
+          sudo chmod 640 /srv/data/app.conf
+          sudo setfacl -m u:other:r /srv/data/app.conf
+          gzip -c /etc/passwd | sudo tee /srv/data/old.log.gz >/dev/null
+          printf 'Port 2222\nPasswordAuthentication yes\nPermitRootLogin yes\n' | sudo tee /etc/ssh/sshd_config.d/zz-test.conf >/dev/null
+          sudo /usr/sbin/sshd -t
+          sudo /usr/sbin/sshd -p 2222
+      - name: Integration tests (all tools against the real sshd)
+        env:
+          SSH_TEST_HOST: 127.0.0.1
+          SSH_TEST_PORT: '2222'
+          SSH_TEST_USER: agent
+          SSH_TEST_SUDO: '1'
+          SSH_TEST_PASSWORD: agentpass
+          SSH_TEST_ROOT_PASSWORD: rootpass
+          SSH_TEST_ENC_PASSPHRASE: keypass
+        run: |
+          export SSH_TEST_KEY="$RUNNER_TEMP/agent_key"
+          export SSH_TEST_ENC_KEY="$RUNNER_TEMP/agent_key_enc"
+          export SSH_TEST_REPORT="$RUNNER_TEMP/tool-report.txt"
+          dart test test/integration
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tool-integration-report
+          path: ${{ runner.temp }}/tool-report.txt
+          if-no-files-found: ignore
+
+  app:
+    name: App – analyze and widget tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test test/app_test.dart
+
+  windows:
+    name: Build Windows
+    needs: [core, app]
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssh-agent-windows
+          path: app/build/windows/x64/runner/Release/
+
+  android:
+    name: Build Android APK
+    needs: [core, app]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssh-agent-android-apk
+          path: app/build/app/outputs/flutter-apk/app-release.apk

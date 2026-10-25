@@ -11,9 +11,9 @@ class Conversation {
     DateTime? createdAt,
     DateTime? updatedAt,
     List<ChatTurn>? turns,
-  })  : createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now(),
-        turns = turns ?? [];
+  }) : createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now(),
+       turns = turns ?? [];
 
   final String id;
   String title;
@@ -27,25 +27,25 @@ class Conversation {
   bool get isEmpty => turns.isEmpty;
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'title': title,
-        'profileId': profileId,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'turns': [for (final t in turns) t.toJson()],
-      };
+    'id': id,
+    'title': title,
+    'profileId': profileId,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'turns': [for (final t in turns) t.toJson()],
+  };
 
   factory Conversation.fromJson(Map<String, Object?> json) => Conversation(
-        id: json['id'] as String,
-        title: json['title'] as String? ?? 'Konverzace',
-        profileId: json['profileId'] as String?,
-        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
-        updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),
-        turns: [
-          for (final t in (json['turns'] as List?) ?? const [])
-            if (t is Map) ChatTurn.fromJson(Map<String, Object?>.from(t)),
-        ],
-      );
+    id: json['id'] as String,
+    title: json['title'] as String? ?? 'Konverzace',
+    profileId: json['profileId'] as String?,
+    createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+    updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),
+    turns: [
+      for (final t in (json['turns'] as List?) ?? const [])
+        if (t is Map) ChatTurn.fromJson(Map<String, Object?>.from(t)),
+    ],
+  );
 
   /// Messages for the model (without system prompt), shortened to roughly
   /// [maxChars] characters: older tool outputs are cut first, then the
@@ -61,9 +61,11 @@ class Conversation {
       }
     }
     int size(List<List<ChatMessage>> groups) => groups.fold(
-        0,
-        (sum, g) => sum +
-            g.fold(0, (s, m) => s + m.content.length + m.toolCalls.length * 80));
+      0,
+      (sum, g) =>
+          sum +
+          g.fold(0, (s, m) => s + m.content.length + m.toolCalls.length * 80),
+    );
 
     // 1) Shorten tool outputs of all but the last two groups.
     for (var i = 0; i < perTurn.length - 2 && size(perTurn) > maxChars; i++) {
@@ -71,8 +73,10 @@ class Conversation {
         for (final m in perTurn[i])
           m.role == ChatRole.tool && m.content.length > 400
               ? m.copyWith(
-                  content: '${m.content.substring(0, 400)}\n'
-                      '[... older output shortened ...]')
+                  content:
+                      '${m.content.substring(0, 400)}\n'
+                      '[... older output shortened ...]',
+                )
               : m,
       ];
     }
@@ -95,8 +99,9 @@ sealed class ChatTurn {
 
   Map<String, Object?> toJson();
 
-  factory ChatTurn.fromJson(Map<String, Object?> json) =>
-      json['type'] == 'user' ? UserTurn.fromJson(json) : AgentTurn.fromJson(json);
+  factory ChatTurn.fromJson(Map<String, Object?> json) => json['type'] == 'user'
+      ? UserTurn.fromJson(json)
+      : AgentTurn.fromJson(json);
 }
 
 class UserTurn extends ChatTurn {
@@ -105,12 +110,16 @@ class UserTurn extends ChatTurn {
   final String text;
 
   @override
-  Map<String, Object?> toJson() =>
-      {'type': 'user', 'text': text, 'at': at.toIso8601String()};
+  Map<String, Object?> toJson() => {
+    'type': 'user',
+    'text': text,
+    'at': at.toIso8601String(),
+  };
 
   factory UserTurn.fromJson(Map<String, Object?> json) => UserTurn(
-      json['text'] as String? ?? '',
-      at: DateTime.tryParse(json['at'] as String? ?? ''));
+    json['text'] as String? ?? '',
+    at: DateTime.tryParse(json['at'] as String? ?? ''),
+  );
 }
 
 enum AgentTurnStatus { running, done, error, cancelled }
@@ -128,8 +137,8 @@ class AgentTurn extends ChatTurn {
     List<String>? notices,
     this.promptTokens = 0,
     this.completionTokens = 0,
-  })  : steps = steps ?? [],
-        notices = notices ?? [];
+  }) : steps = steps ?? [],
+       notices = notices ?? [];
 
   final List<AgentStepRecord> steps;
   AgentTurnStatus status;
@@ -182,17 +191,23 @@ class AgentTurn extends ChatTurn {
         promptTokens += usage?.promptTokens ?? 0;
         completionTokens += usage?.completionTokens ?? 0;
       case AgentToolCallStarted():
-        _current.tools.add(ToolInvocation(
-          id: event.callId,
-          name: event.name,
-          arguments: Map.of(event.arguments),
-          server: event.server,
-          script: event.script,
-          fullCommand: event.fullCommand,
-          runAs: event.runAs,
-          cwd: event.cwd,
-        ));
-      case AgentToolCallFinished(:final callId, :final result, :final modelText):
+        _current.tools.add(
+          ToolInvocation(
+            id: event.callId,
+            name: event.name,
+            arguments: Map.of(event.arguments),
+            server: event.server,
+            script: event.script,
+            fullCommand: event.fullCommand,
+            runAs: event.runAs,
+            cwd: event.cwd,
+          ),
+        );
+      case AgentToolCallFinished(
+        :final callId,
+        :final result,
+        :final modelText,
+      ):
         final call = toolCalls.where((t) => t.id == callId).lastOrNull;
         if (call == null) return;
         call
@@ -236,45 +251,57 @@ class AgentTurn extends ChatTurn {
     final out = <ChatMessage>[];
     for (final step in steps) {
       if (step.tools.isEmpty && step.text.trim().isEmpty) continue;
-      out.add(ChatMessage.assistant(step.text, toolCalls: [
-        for (final t in step.tools)
-          ToolCall(id: t.id, name: t.name, arguments: t.arguments),
-      ]));
+      out.add(
+        ChatMessage.assistant(
+          step.text,
+          toolCalls: [
+            for (final t in step.tools)
+              ToolCall(id: t.id, name: t.name, arguments: t.arguments),
+          ],
+        ),
+      );
       for (final t in step.tools) {
-        out.add(ChatMessage.tool(
-          t.modelText ?? '[error] No result.',
-          toolCallId: t.id,
-          toolName: t.name,
-        ));
+        out.add(
+          ChatMessage.tool(
+            t.modelText ?? '[error] No result.',
+            toolCallId: t.id,
+            toolName: t.name,
+          ),
+        );
       }
     }
     if (out.isNotEmpty && out.last.role == ChatRole.tool) {
       // Interrupted turn: close it so that the history stays valid.
-      out.add(ChatMessage.assistant(status == AgentTurnStatus.cancelled
-          ? '(The user stopped this answer.)'
-          : '(This answer was not finished${error == null ? '' : ': $error'}.)'));
+      out.add(
+        ChatMessage.assistant(
+          status == AgentTurnStatus.cancelled
+              ? '(The user stopped this answer.)'
+              : '(This answer was not finished${error == null ? '' : ': $error'}.)',
+        ),
+      );
     }
     return out;
   }
 
   @override
   Map<String, Object?> toJson() => {
-        'type': 'agent',
-        'at': at.toIso8601String(),
-        'status': status.name,
-        'error': error,
-        'model': model,
-        'server': server,
-        'notices': notices,
-        'promptTokens': promptTokens,
-        'completionTokens': completionTokens,
-        'steps': [for (final s in steps) s.toJson()],
-      };
+    'type': 'agent',
+    'at': at.toIso8601String(),
+    'status': status.name,
+    'error': error,
+    'model': model,
+    'server': server,
+    'notices': notices,
+    'promptTokens': promptTokens,
+    'completionTokens': completionTokens,
+    'steps': [for (final s in steps) s.toJson()],
+  };
 
   factory AgentTurn.fromJson(Map<String, Object?> json) {
     var status = AgentTurnStatus.values.firstWhere(
-        (s) => s.name == json['status'],
-        orElse: () => AgentTurnStatus.done);
+      (s) => s.name == json['status'],
+      orElse: () => AgentTurnStatus.done,
+    );
     // A turn saved while running was interrupted by closing the app.
     final interrupted = status == AgentTurnStatus.running;
     if (interrupted) status = AgentTurnStatus.cancelled;
@@ -301,20 +328,24 @@ class AgentTurn extends ChatTurn {
 }
 
 class AgentStepRecord {
-  AgentStepRecord({this.thinking = '', this.text = '', List<ToolInvocation>? tools})
-      : tools = tools ?? [];
+  AgentStepRecord({
+    this.thinking = '',
+    this.text = '',
+    List<ToolInvocation>? tools,
+  }) : tools = tools ?? [];
 
   String thinking;
   String text;
   final List<ToolInvocation> tools;
 
   Map<String, Object?> toJson() => {
-        'thinking': thinking,
-        'text': text,
-        'tools': [for (final t in tools) t.toJson()],
-      };
+    'thinking': thinking,
+    'text': text,
+    'tools': [for (final t in tools) t.toJson()],
+  };
 
-  factory AgentStepRecord.fromJson(Map<String, Object?> json) => AgentStepRecord(
+  factory AgentStepRecord.fromJson(Map<String, Object?> json) =>
+      AgentStepRecord(
         thinking: json['thinking'] as String? ?? '',
         text: json['text'] as String? ?? '',
         tools: [
@@ -369,46 +400,49 @@ class ToolInvocation {
   String? modelText;
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'name': name,
-        'arguments': arguments,
-        'server': server,
-        'script': script,
-        'fullCommand': fullCommand,
-        'runAs': runAs,
-        'cwd': cwd,
-        'status': status.name,
-        'stdout': stdout,
-        'stderr': stderr,
-        'exitCode': exitCode,
-        'durationMs': durationMs,
-        'timedOut': timedOut,
-        'truncated': truncated,
-        'error': error,
-        'note': note,
-        'modelText': modelText,
-      };
+    'id': id,
+    'name': name,
+    'arguments': arguments,
+    'server': server,
+    'script': script,
+    'fullCommand': fullCommand,
+    'runAs': runAs,
+    'cwd': cwd,
+    'status': status.name,
+    'stdout': stdout,
+    'stderr': stderr,
+    'exitCode': exitCode,
+    'durationMs': durationMs,
+    'timedOut': timedOut,
+    'truncated': truncated,
+    'error': error,
+    'note': note,
+    'modelText': modelText,
+  };
 
   factory ToolInvocation.fromJson(Map<String, Object?> json) => ToolInvocation(
-        id: json['id'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        arguments: Map<String, Object?>.from(
-            (json['arguments'] as Map?) ?? const <String, Object?>{}),
-        server: json['server'] as String? ?? '',
-        script: json['script'] as String?,
-        fullCommand: json['fullCommand'] as String?,
-        runAs: json['runAs'] as String?,
-        cwd: json['cwd'] as String?,
-        status: ToolStatus.values.firstWhere((s) => s.name == json['status'],
-            orElse: () => ToolStatus.failed),
-        stdout: json['stdout'] as String? ?? '',
-        stderr: json['stderr'] as String? ?? '',
-        exitCode: (json['exitCode'] as num?)?.toInt(),
-        durationMs: (json['durationMs'] as num?)?.toInt() ?? 0,
-        timedOut: json['timedOut'] as bool? ?? false,
-        truncated: json['truncated'] as bool? ?? false,
-        error: json['error'] as String?,
-        note: json['note'] as String?,
-        modelText: json['modelText'] as String?,
-      );
+    id: json['id'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    arguments: Map<String, Object?>.from(
+      (json['arguments'] as Map?) ?? const <String, Object?>{},
+    ),
+    server: json['server'] as String? ?? '',
+    script: json['script'] as String?,
+    fullCommand: json['fullCommand'] as String?,
+    runAs: json['runAs'] as String?,
+    cwd: json['cwd'] as String?,
+    status: ToolStatus.values.firstWhere(
+      (s) => s.name == json['status'],
+      orElse: () => ToolStatus.failed,
+    ),
+    stdout: json['stdout'] as String? ?? '',
+    stderr: json['stderr'] as String? ?? '',
+    exitCode: (json['exitCode'] as num?)?.toInt(),
+    durationMs: (json['durationMs'] as num?)?.toInt() ?? 0,
+    timedOut: json['timedOut'] as bool? ?? false,
+    truncated: json['truncated'] as bool? ?? false,
+    error: json['error'] as String?,
+    note: json['note'] as String?,
+    modelText: json['modelText'] as String?,
+  );
 }

@@ -13,8 +13,9 @@ class TextToolCalls {
 }
 
 final RegExp _taggedCall = RegExp(
-    r'<(tool_call|function_call|tools)>\s*([\s\S]*?)\s*</\1>',
-    caseSensitive: false);
+  r'<(tool_call|function_call|tools)>\s*([\s\S]*?)\s*</\1>',
+  caseSensitive: false,
+);
 final RegExp _mistralCalls = RegExp(r'\[TOOL_CALLS\]\s*');
 final RegExp _emptyFence = RegExp(r'```[a-zA-Z]*\s*```');
 
@@ -29,8 +30,11 @@ final RegExp _emptyFence = RegExp(r'```[a-zA-Z]*\s*```');
 ///
 /// Only names from [toolNames] are accepted, so normal answers that merely
 /// contain JSON are left alone.
-TextToolCalls extractTextToolCalls(String content, Set<String> toolNames,
-    {String idPrefix = 'text_call'}) {
+TextToolCalls extractTextToolCalls(
+  String content,
+  Set<String> toolNames, {
+  String idPrefix = 'text_call',
+}) {
   final calls = <ToolCall>[];
   final removals = <(int, int)>[];
   var counter = 0;
@@ -91,7 +95,10 @@ TextToolCalls extractTextToolCalls(String content, Set<String> toolNames,
 }
 
 ToolCall? _toCall(
-    Object? value, Set<String> toolNames, String Function() newId) {
+  Object? value,
+  Set<String> toolNames,
+  String Function() newId,
+) {
   if (value is! Map) return null;
   var map = value;
   if (map['function'] is Map) map = map['function'] as Map;
@@ -103,15 +110,19 @@ ToolCall? _toCall(
       args = jsonDecode(args);
     } on FormatException {
       return ToolCall(
-          id: newId(),
-          name: name,
-          arguments: const {},
-          argumentsError: 'Arguments are not valid JSON: $args');
+        id: newId(),
+        name: name,
+        arguments: const {},
+        argumentsError: 'Arguments are not valid JSON: $args',
+      );
     }
   }
   if (args is! Map) return null;
   return ToolCall(
-      id: newId(), name: name, arguments: Map<String, Object?>.from(args));
+    id: newId(),
+    name: name,
+    arguments: Map<String, Object?>.from(args),
+  );
 }
 
 /// Finds top level JSON objects/arrays in [text]: (start, end, value).

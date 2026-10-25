@@ -37,10 +37,11 @@ class FakeExecutor implements RemoteExecutor {
     commands.add(command);
     return respond?.call(command) ??
         const CommandResult(
-            stdout: 'fake output\n',
-            stderr: '',
-            exitCode: 0,
-            duration: Duration(milliseconds: 5));
+          stdout: 'fake output\n',
+          stderr: '',
+          exitCode: 0,
+          duration: Duration(milliseconds: 5),
+        );
   }
 }
 
@@ -84,5 +85,11 @@ class ScriptedLlm implements LlmClient {
   Future<ModelInfo?> modelInfo() async => null;
 }
 
-LlmResponse callTool(String name, Map<String, Object?> args, {String id = 'c1'}) =>
-    LlmResponse(content: '', toolCalls: [ToolCall(id: id, name: name, arguments: args)]);
+LlmResponse callTool(
+  String name,
+  Map<String, Object?> args, {
+  String id = 'c1',
+}) => LlmResponse(
+  content: '',
+  toolCalls: [ToolCall(id: id, name: name, arguments: args)],
+);

@@ -17,19 +17,20 @@ class ToolCall {
   final String? argumentsError;
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'name': name,
-        'arguments': arguments,
-        if (argumentsError != null) 'argumentsError': argumentsError,
-      };
+    'id': id,
+    'name': name,
+    'arguments': arguments,
+    if (argumentsError != null) 'argumentsError': argumentsError,
+  };
 
   factory ToolCall.fromJson(Map<String, Object?> json) => ToolCall(
-        id: json['id'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        arguments: Map<String, Object?>.from(
-            (json['arguments'] as Map?) ?? const <String, Object?>{}),
-        argumentsError: json['argumentsError'] as String?,
-      );
+    id: json['id'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    arguments: Map<String, Object?>.from(
+      (json['arguments'] as Map?) ?? const <String, Object?>{},
+    ),
+    argumentsError: json['argumentsError'] as String?,
+  );
 }
 
 /// One message of the conversation sent to the model.
@@ -44,32 +45,32 @@ class ChatMessage {
   });
 
   const ChatMessage.system(String content)
-      : this(role: ChatRole.system, content: content);
+    : this(role: ChatRole.system, content: content);
 
   const ChatMessage.user(String content)
-      : this(role: ChatRole.user, content: content);
+    : this(role: ChatRole.user, content: content);
 
   const ChatMessage.assistant(
     String content, {
     String thinking = '',
     List<ToolCall> toolCalls = const [],
   }) : this(
-          role: ChatRole.assistant,
-          content: content,
-          thinking: thinking,
-          toolCalls: toolCalls,
-        );
+         role: ChatRole.assistant,
+         content: content,
+         thinking: thinking,
+         toolCalls: toolCalls,
+       );
 
   const ChatMessage.tool(
     String content, {
     required String toolCallId,
     required String toolName,
   }) : this(
-          role: ChatRole.tool,
-          content: content,
-          toolCallId: toolCallId,
-          toolName: toolName,
-        );
+         role: ChatRole.tool,
+         content: content,
+         toolCallId: toolCallId,
+         toolName: toolName,
+       );
 
   final ChatRole role;
   final String content;
@@ -83,22 +84,18 @@ class ChatMessage {
   final String? toolName;
 
   ChatMessage copyWith({String? content}) => ChatMessage(
-        role: role,
-        content: content ?? this.content,
-        thinking: thinking,
-        toolCalls: toolCalls,
-        toolCallId: toolCallId,
-        toolName: toolName,
-      );
+    role: role,
+    content: content ?? this.content,
+    thinking: thinking,
+    toolCalls: toolCalls,
+    toolCallId: toolCallId,
+    toolName: toolName,
+  );
 }
 
 /// Token statistics reported by the server.
 class LlmUsage {
-  const LlmUsage({
-    this.promptTokens,
-    this.completionTokens,
-    this.duration,
-  });
+  const LlmUsage({this.promptTokens, this.completionTokens, this.duration});
 
   final int? promptTokens;
   final int? completionTokens;

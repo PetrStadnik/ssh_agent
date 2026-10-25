@@ -46,7 +46,14 @@ Future<void> main(List<String> argv) async {
   final opts = <String, String>{};
   final flags = <String>{};
   final rest = <String>[];
-  const boolFlags = {'--sudo', '--su', '--list-tools', '--approve', '--help', '-h'};
+  const boolFlags = {
+    '--sudo',
+    '--su',
+    '--list-tools',
+    '--approve',
+    '--help',
+    '-h',
+  };
   for (var i = 0; i < argv.length; i++) {
     final a = argv[i];
     if (boolFlags.contains(a)) {
@@ -79,8 +86,8 @@ Future<void> main(List<String> argv) async {
   final elevation = flags.contains('--sudo')
       ? ElevationMethod.sudo
       : flags.contains('--su')
-          ? ElevationMethod.su
-          : ElevationMethod.none;
+      ? ElevationMethod.su
+      : ElevationMethod.none;
   final profile = ConnectionProfile(
     id: 'cli',
     name: host,
@@ -127,34 +134,46 @@ Future<void> main(List<String> argv) async {
         ? <String, Object?>{}
         : Map<String, Object?>.from(jsonDecode(opts['--args']!) as Map);
     final call = registry.prepare('cli', opts['--tool']!, args, session);
-    ui.toolStarted(call.tool.name, call.args.values, call.script,
-        session.effectiveUser, session.cwd, profile.name);
+    ui.toolStarted(
+      call.tool.name,
+      call.args.values,
+      call.script,
+      session.effectiveUser,
+      session.cwd,
+      profile.name,
+    );
     final result = await registry.execute(call, session);
     ui.toolFinished(result, full: true);
     await executor.close();
     return;
   }
 
-  final llm = createLlmClient(LlmConfig(
-    provider: opts['--provider'] == 'openai'
-        ? LlmProvider.openAiCompatible
-        : LlmProvider.ollama,
-    baseUrl: opts['--url'] ??
-        (opts['--provider'] == 'openai'
-            ? 'http://127.0.0.1:1234/v1'
-            : 'http://127.0.0.1:11434'),
-    model: opts['--model'] ?? 'qwen3.5:9b',
-    contextLength: int.tryParse(opts['--ctx'] ?? '') ?? 32768,
-    thinking: ThinkingMode.values.firstWhere((t) => t.name == opts['--think'],
-        orElse: () => ThinkingMode.auto),
-  ));
+  final llm = createLlmClient(
+    LlmConfig(
+      provider: opts['--provider'] == 'openai'
+          ? LlmProvider.openAiCompatible
+          : LlmProvider.ollama,
+      baseUrl:
+          opts['--url'] ??
+          (opts['--provider'] == 'openai'
+              ? 'http://127.0.0.1:1234/v1'
+              : 'http://127.0.0.1:11434'),
+      model: opts['--model'] ?? 'qwen3.5:9b',
+      contextLength: int.tryParse(opts['--ctx'] ?? '') ?? 32768,
+      thinking: ThinkingMode.values.firstWhere(
+        (t) => t.name == opts['--think'],
+        orElse: () => ThinkingMode.auto,
+      ),
+    ),
+  );
   final agent = Agent(
     llm: llm,
     tools: registry,
     session: session,
     serverName: profile.name,
     config: AgentConfig(
-        maxSteps: int.tryParse(opts['--max-steps'] ?? '') ?? 20),
+      maxSteps: int.tryParse(opts['--max-steps'] ?? '') ?? 20,
+    ),
     approver: flags.contains('--approve')
         ? (call) async {
             stderr.write('Run `${call.script.split('\n').first}`? [Y/n] ');
@@ -173,8 +192,11 @@ Future<void> main(List<String> argv) async {
     final cancel = CancelToken();
     final sub = ProcessSignal.sigint.watch().listen((_) => cancel.cancel());
     try {
-      await for (final event
-          in agent.run(history: history, userMessage: question, cancel: cancel)) {
+      await for (final event in agent.run(
+        history: history,
+        userMessage: question,
+        cancel: cancel,
+      )) {
         turn.apply(event);
         ui.event(event);
       }
@@ -186,7 +208,9 @@ Future<void> main(List<String> argv) async {
   if (rest.isNotEmpty) {
     await ask(rest.join(' '));
   } else {
-    stdout.writeln('Připojeno k ${profile.label}. Pište otázky, "exit" ukončí.');
+    stdout.writeln(
+      'Připojeno k ${profile.label}. Pište otázky, "exit" ukončí.',
+    );
     while (true) {
       stdout.write('\n> ');
       final line = stdin.readLineSync(encoding: utf8);
@@ -208,7 +232,8 @@ class _Printer {
   bool _inText = false;
   bool _inThinking = false;
 
-  String _c(String code, String text) => color ? '\x1B[${code}m$text\x1B[0m' : text;
+  String _c(String code, String text) =>
+      color ? '\x1B[${code}m$text\x1B[0m' : text;
 
   void event(AgentEvent e) {
     switch (e) {
@@ -248,13 +273,21 @@ class _Printer {
     _inThinking = false;
   }
 
-  void toolStarted(String name, Map<String, Object?> args, String? script,
-      String? runAs, String? cwd, String server) {
+  void toolStarted(
+    String name,
+    Map<String, Object?> args,
+    String? script,
+    String? runAs,
+    String? cwd,
+    String server,
+  ) {
     final argText = args.entries
         .where((e) => e.value != null)
         .map((e) => '${e.key}: ${e.value}')
         .join(', ');
-    stdout.writeln(_c('36', '⚙ $name($argText)  [$runAs@$server ${cwd ?? '~'}]'));
+    stdout.writeln(
+      _c('36', '⚙ $name($argText)  [$runAs@$server ${cwd ?? '~'}]'),
+    );
     if (script != null) {
       for (final line in script.split('\n').take(6)) {
         stdout.writeln(_c('2', '  \$ $line'));
@@ -265,8 +298,10 @@ class _Printer {
   void toolFinished(ToolResult r, {bool full = false}) {
     final status = r.error != null
         ? _c('31', '✖ ${r.error}')
-        : _c(r.isError ? '33' : '32',
-            '→ exit ${r.exitCode ?? '?'} · ${r.duration.inMilliseconds} ms');
+        : _c(
+            r.isError ? '33' : '32',
+            '→ exit ${r.exitCode ?? '?'} · ${r.duration.inMilliseconds} ms',
+          );
     stdout.writeln('  $status');
     if (r.note != null) stdout.writeln(_c('33', '  ℹ ${r.note}'));
     final lines = '${r.stdout}${r.stderr.isEmpty ? '' : '\n${r.stderr}'}'
@@ -274,10 +309,14 @@ class _Printer {
         .split('\n');
     final shown = full ? lines : lines.take(15).toList();
     for (final line in shown) {
-      if (line.isNotEmpty || shown.length > 1) stdout.writeln(_c('2', '  │ $line'));
+      if (line.isNotEmpty || shown.length > 1) {
+        stdout.writeln(_c('2', '  │ $line'));
+      }
     }
     if (shown.length < lines.length) {
-      stdout.writeln(_c('2', '  │ ... (${lines.length - shown.length} dalších řádků)'));
+      stdout.writeln(
+        _c('2', '  │ ... (${lines.length - shown.length} dalších řádků)'),
+      );
     }
   }
 }

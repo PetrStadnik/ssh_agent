@@ -10,8 +10,8 @@ import 'remote_executor.dart';
 
 /// Decides whether a host key is trusted. [fingerprint] has the OpenSSH
 /// format `SHA256:<base64>` (same as `ssh-keygen -lf`).
-typedef HostKeyVerifier = FutureOr<bool> Function(
-    String keyType, String fingerprint);
+typedef HostKeyVerifier =
+    FutureOr<bool> Function(String keyType, String fingerprint);
 
 /// [RemoteExecutor] implemented with the pure Dart `dartssh2` library, so it
 /// runs unchanged on Windows, Linux, macOS, Android and iOS.
@@ -65,31 +65,37 @@ class SshExecutor implements RemoteExecutor {
       final file = File(expandLocalHome(keyPath));
       if (!await file.exists()) {
         throw RemoteConnectionException(
-            'Soubor s privátním klíčem neexistuje: ${file.path}');
+          'Soubor s privátním klíčem neexistuje: ${file.path}',
+        );
       }
       pem = await file.readAsString();
     }
     if (pem == null || pem.trim().isEmpty) {
       throw RemoteConnectionException(
-          'Profil nemá nastavený privátní klíč (vložte ho nebo zadejte cestu k souboru).');
+        'Profil nemá nastavený privátní klíč (vložte ho nebo zadejte cestu k souboru).',
+      );
     }
     if (pem.contains('PuTTY-User-Key-File')) {
       throw RemoteConnectionException(
-          'Klíč je ve formátu PuTTY (.ppk). Převeďte ho v PuTTYgen přes '
-          'Conversions → Export OpenSSH key.');
+        'Klíč je ve formátu PuTTY (.ppk). Převeďte ho v PuTTYgen přes '
+        'Conversions → Export OpenSSH key.',
+      );
     }
     try {
       if (SSHKeyPair.isEncryptedPem(pem) &&
           (secrets.passphrase == null || secrets.passphrase!.isEmpty)) {
         throw RemoteConnectionException(
-            'Privátní klíč je zašifrovaný - zadejte heslo ke klíči (passphrase).');
+          'Privátní klíč je zašifrovaný - zadejte heslo ke klíči (passphrase).',
+        );
       }
       return SSHKeyPair.fromPem(pem, secrets.passphrase);
     } on RemoteConnectionException {
       rethrow;
     } catch (e) {
-      throw RemoteConnectionException('Privátní klíč nelze načíst: $e',
-          cause: e);
+      throw RemoteConnectionException(
+        'Privátní klíč nelze načíst: $e',
+        cause: e,
+      );
     }
   }
 
@@ -97,12 +103,16 @@ class SshExecutor implements RemoteExecutor {
     final identities = await _loadIdentities();
     final SSHSocket socket;
     try {
-      socket = await SSHSocket.connect(profile.host, profile.port,
-          timeout: connectTimeout);
+      socket = await SSHSocket.connect(
+        profile.host,
+        profile.port,
+        timeout: connectTimeout,
+      );
     } catch (e) {
       throw RemoteConnectionException(
-          'Nelze se připojit k ${profile.host}:${profile.port} ($e)',
-          cause: e);
+        'Nelze se připojit k ${profile.host}:${profile.port} ($e)',
+        cause: e,
+      );
     }
 
     String? rejectedKey;
@@ -132,16 +142,18 @@ class SshExecutor implements RemoteExecutor {
     } on SSHAuthFailError catch (e) {
       client.close();
       throw RemoteConnectionException(
-          'Přihlášení jako ${profile.username} selhalo (${e.message}). '
-          'Zkontrolujte jméno, heslo nebo klíč.',
-          cause: e);
+        'Přihlášení jako ${profile.username} selhalo (${e.message}). '
+        'Zkontrolujte jméno, heslo nebo klíč.',
+        cause: e,
+      );
     } catch (e) {
       client.close();
       if (rejectedKey != null) {
         throw RemoteConnectionException(
-            'Klíč serveru nebyl potvrzen ($rejectedKey). Připojení bylo '
-            'přerušeno.',
-            cause: e);
+          'Klíč serveru nebyl potvrzen ($rejectedKey). Připojení bylo '
+          'přerušeno.',
+          cause: e,
+        );
       }
       throw RemoteConnectionException('SSH spojení selhalo: $e', cause: e);
     }
@@ -150,7 +162,8 @@ class SshExecutor implements RemoteExecutor {
   }
 
   static final RegExp _passwordPrompt = RegExp(
-      r'(?:[Pp]assword|[Hh]eslo|[Pp]asswort|[Cc]ontrase)[^\n]*:\s*$');
+    r'(?:[Pp]assword|[Hh]eslo|[Pp]asswort|[Cc]ontrase)[^\n]*:\s*$',
+  );
 
   @override
   Future<CommandResult> execute(
@@ -186,8 +199,17 @@ class SshExecutor implements RemoteExecutor {
     var timedOut = false;
     var passwordSent = false;
 
+    /// Stops the remote command: closing the channel alone waits for the
+    /// process, so it is killed first (OpenSSH 7.9+ honours signals).
+    void abort() {
+      try {
+        session.kill(SSHSignal.KILL);
+      } catch (_) {}
+      session.close();
+    }
+
     void stopIfFull() {
-      if (stdout.full && stderr.full) session.close();
+      if (stdout.full && stderr.full) abort();
     }
 
     final outDone = Completer<void>();
@@ -195,14 +217,25 @@ class SshExecutor implements RemoteExecutor {
     session.stdout.listen(
       (data) {
         stdout.add(data);
-        if (pty && promptPassword != null && !passwordSent) {
-          if (_passwordPrompt.hasMatch(stdout.tailText(200))) {
-            passwordSent = true;
+        if (pty &&
+            !passwordSent &&
+            _passwordPrompt.hasMatch(stdout.tailText(200))) {
+          passwordSent = true;
+          if (promptPassword == null) {
+            // Nothing to type - fail fast instead of waiting for the timeout.
+            stderr.add(
+              Uint8List.fromList(
+                utf8.encode(
+                  'A password is required but none is configured in the server profile.\n',
+                ),
+              ),
+            );
+            abort();
+          } else {
             session.write(Uint8List.fromList(utf8.encode('$promptPassword\n')));
           }
         }
-        if (stdout.full) session.close();
-        stopIfFull();
+        if (stdout.full) abort();
       },
       onDone: () => outDone.complete(),
       onError: (_) => outDone.isCompleted ? null : outDone.complete(),
@@ -226,15 +259,15 @@ class SshExecutor implements RemoteExecutor {
 
     final timer = Timer(timeout, () {
       timedOut = true;
-      try {
-        session.kill(SSHSignal.KILL);
-      } catch (_) {}
-      session.close();
+      abort();
     });
 
     try {
-      await Future.wait([outDone.future, errDone.future, session.done])
-          .timeout(timeout + const Duration(seconds: 10));
+      await Future.wait([
+        outDone.future,
+        errDone.future,
+        session.done,
+      ]).timeout(timeout + const Duration(seconds: 10));
     } on TimeoutException {
       timedOut = true;
       session.close();
@@ -244,7 +277,8 @@ class SshExecutor implements RemoteExecutor {
       timer.cancel();
     }
     final exitCode = await session.waitForExit(
-        timeout: const Duration(milliseconds: 500));
+      timeout: const Duration(milliseconds: 500),
+    );
     stopwatch.stop();
 
     var outText = stdout.text;
@@ -276,7 +310,8 @@ class SshExecutor implements RemoteExecutor {
     var result = text.replaceAll('\r\n', '\n').replaceAll('\r', '');
     if (removePrompt) {
       final match = RegExp(r'^[^\n]*:[ \t]*\n?').firstMatch(result);
-      if (match != null && _passwordPrompt.hasMatch('${match.group(0)!.trimRight()} ')) {
+      if (match != null &&
+          _passwordPrompt.hasMatch('${match.group(0)!.trimRight()} ')) {
         result = result.substring(match.end);
       }
     }
@@ -300,7 +335,8 @@ class SshExecutor implements RemoteExecutor {
 /// `%USERPROFILE%`, otherwise `$HOME`).
 String expandLocalHome(String path) {
   if (path == '~' || path.startsWith('~/') || path.startsWith(r'~\')) {
-    final home = Platform.environment['USERPROFILE'] ??
+    final home =
+        Platform.environment['USERPROFILE'] ??
         Platform.environment['HOME'] ??
         '';
     return home + path.substring(1);
@@ -308,7 +344,9 @@ String expandLocalHome(String path) {
   return path;
 }
 
-final RegExp _ansi = RegExp(r'\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\)|[@-Z\\-_])');
+final RegExp _ansi = RegExp(
+  r'\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\)|[@-Z\\-_])',
+);
 
 /// Removes terminal colour/control escape sequences.
 String stripAnsi(String text) =>

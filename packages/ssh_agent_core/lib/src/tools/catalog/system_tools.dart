@@ -3,8 +3,11 @@ import 'common.dart';
 String _user(ToolArgs a, [String name = 'user']) =>
     a.ident(name, userNamePattern, 'expected a Linux user name');
 
-String _since(ToolArgs a, String name) => a.ident(name, timeExpressionPattern,
-    'use e.g. "2026-10-01", "2026-10-01 12:00", "yesterday", "-2h" or "today"');
+String _since(ToolArgs a, String name) => a.ident(
+  name,
+  timeExpressionPattern,
+  'use e.g. "2026-10-01", "2026-10-01 12:00", "yesterday", "-2h" or "today"',
+);
 
 const _authFailurePattern =
     'Failed password|Failed publickey|Invalid user|authentication failure|'
@@ -34,21 +37,31 @@ true''',
         'a date.',
     params: [
       ToolParam.string('user', 'Only this user.'),
-      ToolParam.integer('limit', 'Maximum number of entries.',
-          defaultValue: 50, min: 1, max: 2000),
-      ToolParam.string('since',
-          'Only logins since this time, e.g. "2026-10-01" or "-7days" or "yesterday".'),
+      ToolParam.integer(
+        'limit',
+        'Maximum number of entries.',
+        defaultValue: 50,
+        min: 1,
+        max: 2000,
+      ),
+      ToolParam.string(
+        'since',
+        'Only logins since this time, e.g. "2026-10-01" or "-7days" or "yesterday".',
+      ),
     ],
     script: (a) {
       final n = a.integer('limit');
       final user = a.has('user') ? ' ${_user(a)}' : '';
       final since = a.has('since') ? ' --since ${_since(a, 'since')}' : '';
-      return fill(r'''command -v last >/dev/null 2>&1 || { echo 'The last command is not available on this server.' >&2; exit 127; }
+      return fill(
+        r'''command -v last >/dev/null 2>&1 || { echo 'The last command is not available on this server.' >&2; exit 127; }
 if last -F -w -i -n 1 >/dev/null 2>&1; then
   last -F -w -i -n @N@@SINCE@@USER@
 else
   last -n @N@@USER@
-fi''', {'N': '$n', 'SINCE': since, 'USER': user});
+fi''',
+        {'N': '$n', 'SINCE': since, 'USER': user},
+      );
     },
   ),
   ToolDefinition(
@@ -59,14 +72,23 @@ fi''', {'N': '$n', 'SINCE': since, 'USER': user});
         'Failed login attempts: `lastb` (btmp, needs root) and failed SSH '
         'authentications from the journal or /var/log/auth.log|secure.',
     params: [
-      ToolParam.integer('limit', 'Maximum number of entries per source.',
-          defaultValue: 50, min: 1, max: 2000),
-      ToolParam.string('since', 'Only since this time, e.g. "2026-10-01" or "-1d".'),
+      ToolParam.integer(
+        'limit',
+        'Maximum number of entries per source.',
+        defaultValue: 50,
+        min: 1,
+        max: 2000,
+      ),
+      ToolParam.string(
+        'since',
+        'Only since this time, e.g. "2026-10-01" or "-1d".',
+      ),
     ],
     timeout: const Duration(seconds: 60),
     script: (a) {
       final since = a.has('since') ? ' --since ${_since(a, 'since')}' : '';
-      return fill(r'''echo '=== lastb (needs root) ==='
+      return fill(
+        r'''echo '=== lastb (needs root) ==='
 if ! command -v lastb >/dev/null 2>&1; then echo 'lastb is not available'
 elif lastb -F -w -i -n 1 >/dev/null 2>&1; then lastb -F -w -i -n @N@
 else lastb -n @N@ 2>&1; fi
@@ -81,11 +103,13 @@ if [ -n "$out" ]; then
 else
   grep -h -E "$pat" /var/log/auth.log /var/log/secure 2>/dev/null | tail -n @N@
 fi
-true''', {
-        'N': '${a.integer('limit')}',
-        'PAT': shQuote(_authFailurePattern),
-        'SINCE': since,
-      });
+true''',
+        {
+          'N': '${a.integer('limit')}',
+          'PAT': shQuote(_authFailurePattern),
+          'SINCE': since,
+        },
+      );
     },
   ),
 ];
@@ -100,13 +124,25 @@ final List<ToolDefinition> processTools = [
         'time and full command line. Filter by text and/or user, sort, or '
         'show as a tree.',
     params: [
-      ToolParam.string('filter', 'Only processes whose line contains this text (case-insensitive).'),
+      ToolParam.string(
+        'filter',
+        'Only processes whose line contains this text (case-insensitive).',
+      ),
       ToolParam.string('user', 'Only processes of this user.'),
-      ToolParam.string('sort', 'Sort order.',
-          enumValues: ['cpu', 'memory', 'pid', 'start'], defaultValue: 'cpu'),
+      ToolParam.string(
+        'sort',
+        'Sort order.',
+        enumValues: ['cpu', 'memory', 'pid', 'start'],
+        defaultValue: 'cpu',
+      ),
       ToolParam.boolean('tree', 'Show parent/child tree.', defaultValue: false),
-      ToolParam.integer('limit', 'Maximum number of processes.',
-          defaultValue: 50, min: 1, max: 2000),
+      ToolParam.integer(
+        'limit',
+        'Maximum number of processes.',
+        defaultValue: 50,
+        min: 1,
+        max: 2000,
+      ),
     ],
     script: (a) {
       final select = a.has('user') ? '-u ${_user(a)} -U ${_user(a)}' : '-e';
@@ -121,30 +157,34 @@ final List<ToolDefinition> processTools = [
           : 'ps $select -ww -o pid,ppid,user,%cpu,%mem,rss,stat,lstart,args --sort=$sortKey';
       // Our own wrapper processes (sh -c, sudo, su) contain the prelude
       // "SYSTEMD_COLORS=0" and are hidden, as are children of this shell.
-      return fill(r'''@FILTER@
+      return fill(
+        r'''@FILTER@
 if ps -o pid= -p 1 --sort=pid >/dev/null 2>&1; then
   @GNU@
 else
   ps aux 2>/dev/null || ps
 fi | awk -v me="$$" 'NR==1 {print; next} $1==me || $2==me {next} index($0, "SYSTEMD_COLORS=0") || index($0, "PS_FILTER") || index($0, "-ww -o pid,ppid,user") {next} ENVIRON["PS_FILTER"]=="" || index(tolower($0), tolower(ENVIRON["PS_FILTER"])) {print}' @LIMIT@''',
-          {
-            'FILTER': exportVar('PS_FILTER', a.strOrNull('filter')),
-            'GNU': gnu,
-            'LIMIT': limit(a.integer('limit') + 1),
-          });
+        {
+          'FILTER': exportVar('PS_FILTER', a.strOrNull('filter')),
+          'GNU': gnu,
+          'LIMIT': limit(a.integer('limit') + 1),
+        },
+      );
     },
   ),
   ToolDefinition(
     name: 'process_details',
     category: ToolCategory.processes,
-    summary: 'Detail procesu: binárka, pracovní adresář, otevřené soubory, sockety',
+    summary:
+        'Detail procesu: binárka, pracovní adresář, otevřené soubory, sockety',
     description:
         'Details of one process: owner, start time, executable, working '
         'directory, full command line, status, cgroup/systemd unit, open '
         'file descriptors and network sockets. Good for "where does this '
         'service store data".',
     params: [ToolParam.integer('pid', 'Process ID.', required: true, min: 1)],
-    script: (a) => fill(r'''p=@PID@
+    script: (a) => fill(
+      r'''p=@PID@
 [ -d /proc/$p ] || { echo "No process with PID $p" >&2; exit 1; }
 ps -ww -o pid,ppid,user,group,stat,lstart,etime,%cpu,%mem,rss,args -p $p
 echo '--- executable / working directory / root ---'
@@ -159,11 +199,9 @@ echo '--- open file descriptors ---'
 ls -l /proc/$p/fd 2>&1 @LIM80@
 echo '--- network sockets ---'
 if command -v ss >/dev/null 2>&1; then ss -tunap 2>/dev/null | grep "pid=$p,"; fi
-true''', {
-      'PID': '${a.integer('pid')}',
-      'LIM5': limit(5),
-      'LIM80': limit(80),
-    }),
+true''',
+      {'PID': '${a.integer('pid')}', 'LIM5': limit(5), 'LIM80': limit(80)},
+    ),
   ),
   ToolDefinition(
     name: 'open_files',
@@ -179,19 +217,24 @@ true''', {
     exitCodeMeaning: const {1: 'Nothing found.'},
     script: (a) {
       if (a.has('pid')) {
-        return fill(r'''if command -v lsof >/dev/null 2>&1; then lsof -nP -p @PID@ 2>&1 @LIM@
+        return fill(
+          r'''if command -v lsof >/dev/null 2>&1; then lsof -nP -p @PID@ 2>&1 @LIM@
 else ls -l /proc/@PID@/fd 2>&1 @LIM@; fi''',
-            {'PID': '${a.integer('pid')}', 'LIM': limit(300)});
+          {'PID': '${a.integer('pid')}', 'LIM': limit(300)},
+        );
       }
       if (!a.has('path')) {
         throw ToolArgumentException('Provide either "pid" or "path".');
       }
-      return fill(r'''if command -v lsof >/dev/null 2>&1; then lsof -nP -- @P@ 2>&1 @LIM@
+      return fill(
+        r'''if command -v lsof >/dev/null 2>&1; then lsof -nP -- @P@ 2>&1 @LIM@
 elif command -v fuser >/dev/null 2>&1; then fuser -v -- @P@ 2>&1
 else
   target=$(readlink -f -- @P@)
   for fd in /proc/[0-9]*/fd/*; do t=$(readlink "$fd" 2>/dev/null) && [ "$t" = "$target" ] && echo "$fd -> $t"; done
-fi''', {'P': a.path('path', allowGlob: false), 'LIM': limit(300)});
+fi''',
+        {'P': a.path('path', allowGlob: false), 'LIM': limit(300)},
+      );
     },
   ),
   ToolDefinition(
@@ -201,13 +244,16 @@ fi''', {'P': a.path('path', allowGlob: false), 'LIM': limit(300)});
     description:
         'Show load average, memory and swap usage, CPU count and the top '
         'processes (`uptime`, `free -h`, `top -b -n 1`).',
-    script: (_) => fill(r'''uptime
+    script: (_) => fill(
+      r'''uptime
 echo '--- memory ---'
 free -h 2>/dev/null || grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree):' /proc/meminfo
 printf 'cpus: %s, load: %s\n' "$(nproc 2>/dev/null)" "$(cat /proc/loadavg)"
 echo '--- top ---'
 top -b -n 1 2>/dev/null @LIM@
-true''', {'LIM': limit(30)}),
+true''',
+      {'LIM': limit(30)},
+    ),
   ),
 ];
 
@@ -220,9 +266,12 @@ final List<ToolDefinition> serviceTools = [
         'List system services (systemd units; OpenRC/SysV as fallback): '
         'running, failed, all or enabled at boot.',
     params: [
-      ToolParam.string('state', 'Which services.',
-          enumValues: ['running', 'failed', 'all', 'enabled'],
-          defaultValue: 'running'),
+      ToolParam.string(
+        'state',
+        'Which services.',
+        enumValues: ['running', 'failed', 'all', 'enabled'],
+        defaultValue: 'running',
+      ),
     ],
     script: (a) {
       final systemd = switch (a.str('state')) {
@@ -234,10 +283,13 @@ final List<ToolDefinition> serviceTools = [
         _ =>
           'systemctl list-unit-files --type=service --state=enabled --no-pager --no-legend',
       };
-      return fill(r'''if [ -d /run/systemd/system ]; then
+      return fill(
+        r'''if [ -d /run/systemd/system ]; then
   @SYSTEMD@ @LIM@
 elif command -v rc-status >/dev/null 2>&1; then rc-status -a
-else service --status-all 2>&1; fi''', {'SYSTEMD': systemd, 'LIM': limit(400)});
+else service --status-all 2>&1; fi''',
+        {'SYSTEMD': systemd, 'LIM': limit(400)},
+      );
     },
   ),
   ToolDefinition(
@@ -249,26 +301,39 @@ else service --status-all 2>&1; fi''', {'SYSTEMD': systemd, 'LIM': limit(400)});
         'recent log lines, unit file path, ExecStart, user and working '
         'directory; optionally the full unit file (`systemctl cat`).',
     params: [
-      ToolParam.string('name', 'Service name, e.g. nginx or ssh.service.',
-          required: true),
-      ToolParam.boolean('show_unit_file', 'Also print the unit file.',
-          defaultValue: false),
+      ToolParam.string(
+        'name',
+        'Service name, e.g. nginx or ssh.service.',
+        required: true,
+      ),
+      ToolParam.boolean(
+        'show_unit_file',
+        'Also print the unit file.',
+        defaultValue: false,
+      ),
     ],
     exitCodeMeaning: const {
       3: 'The service is not running (inactive or failed).',
       4: 'No such service.',
     },
     script: (a) {
-      final n = a.ident('name', unitNamePattern, 'expected a systemd unit name');
+      final n = a.ident(
+        'name',
+        unitNamePattern,
+        'expected a systemd unit name',
+      );
       final unitFile = a.flag('show_unit_file')
           ? '\necho "--- unit file ---"\nsystemctl cat --no-pager $n 2>&1'
           : '';
-      return fill(r'''[ -d /run/systemd/system ] || { echo 'systemd is not running, using the service command'; service @N@ status 2>&1; exit $?; }
+      return fill(
+        r'''[ -d /run/systemd/system ] || { echo 'systemd is not running, using the service command'; service @N@ status 2>&1; exit $?; }
 systemctl status --no-pager -l -n 25 @N@ 2>&1
 rc=$?
 echo '--- properties ---'
 systemctl show --no-pager -p Id,Description,LoadState,ActiveState,SubState,UnitFileState,FragmentPath,DropInPaths,MainPID,ExecMainStartTimestamp,User,Group,WorkingDirectory,ExecStart @N@ 2>&1@UNIT@
-exit $rc''', {'N': n, 'UNIT': unitFile});
+exit $rc''',
+        {'N': n, 'UNIT': unitFile},
+      );
     },
   ),
   ToolDefinition(
@@ -281,17 +346,46 @@ exit $rc''', {'N': n, 'UNIT': unitFile});
         'messages or current boot.',
     params: [
       ToolParam.string('unit', 'Service unit, e.g. nginx or sshd.'),
-      ToolParam.string('since', 'Start time, e.g. "2026-10-01 08:00", "yesterday", "-2h".'),
+      ToolParam.string(
+        'since',
+        'Start time, e.g. "2026-10-01 08:00", "yesterday", "-2h".',
+      ),
       ToolParam.string('until', 'End time, same format as since.'),
-      ToolParam.string('priority', 'Show this priority and more severe.',
-          enumValues: ['emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug']),
-      ToolParam.string('grep', 'Only entries matching this extended regex (case-insensitive).'),
-      ToolParam.boolean('kernel', 'Kernel messages only (like dmesg).',
-          defaultValue: false),
-      ToolParam.boolean('current_boot', 'Only the current boot.',
-          defaultValue: false),
-      ToolParam.integer('lines', 'Maximum number of entries (newest).',
-          defaultValue: 100, min: 1, max: 3000),
+      ToolParam.string(
+        'priority',
+        'Show this priority and more severe.',
+        enumValues: [
+          'emerg',
+          'alert',
+          'crit',
+          'err',
+          'warning',
+          'notice',
+          'info',
+          'debug',
+        ],
+      ),
+      ToolParam.string(
+        'grep',
+        'Only entries matching this extended regex (case-insensitive).',
+      ),
+      ToolParam.boolean(
+        'kernel',
+        'Kernel messages only (like dmesg).',
+        defaultValue: false,
+      ),
+      ToolParam.boolean(
+        'current_boot',
+        'Only the current boot.',
+        defaultValue: false,
+      ),
+      ToolParam.integer(
+        'lines',
+        'Maximum number of entries (newest).',
+        defaultValue: 100,
+        min: 1,
+        max: 3000,
+      ),
     ],
     timeout: const Duration(seconds: 90),
     exitCodeMeaning: const {1: 'No matching log entries.'},
@@ -299,7 +393,9 @@ exit $rc''', {'N': n, 'UNIT': unitFile});
       final n = a.integer('lines');
       final opts = <String>['--no-pager', '-o short-iso'];
       if (a.has('unit')) {
-        opts.add('-u ${a.ident('unit', unitNamePattern, 'expected a unit name')}');
+        opts.add(
+          '-u ${a.ident('unit', unitNamePattern, 'expected a unit name')}',
+        );
       }
       if (a.flag('kernel')) opts.add('-k');
       if (a.flag('current_boot')) opts.add('-b');
@@ -313,19 +409,22 @@ exit $rc''', {'N': n, 'UNIT': unitFile});
       final fallback = grep == null
           ? 'tail -n $n "\$f"'
           : 'grep -i -E -e $grep "\$f" | tail -n $n';
-      return fill(r'''if command -v journalctl >/dev/null 2>&1 && { [ -d /run/systemd/system ] || [ -d /var/log/journal ]; }; then
+      return fill(
+        r'''if command -v journalctl >/dev/null 2>&1 && { [ -d /run/systemd/system ] || [ -d /var/log/journal ]; }; then
   @JOURNAL@
 else
   if [ "@KERNEL@" = 1 ]; then dmesg -T 2>&1 | tail -n @N@; exit; fi
   f=/var/log/syslog; [ -f "$f" ] || f=/var/log/messages
   echo "(journalctl not available, reading $f)"
   @FALLBACK@
-fi''', {
-        'JOURNAL': journal,
-        'FALLBACK': fallback,
-        'KERNEL': a.flag('kernel') ? '1' : '0',
-        'N': '$n',
-      });
+fi''',
+        {
+          'JOURNAL': journal,
+          'FALLBACK': fallback,
+          'KERNEL': a.flag('kernel') ? '1' : '0',
+          'N': '$n',
+        },
+      );
     },
   ),
   ToolDefinition(
@@ -335,7 +434,12 @@ fi''', {
     description:
         'Show scheduled jobs: /etc/crontab, /etc/cron.d, cron.daily etc., '
         'user crontabs (`crontab -l`), systemd timers and at jobs.',
-    params: [ToolParam.string('user', 'Only the crontab of this user (needs root for others).')],
+    params: [
+      ToolParam.string(
+        'user',
+        'Only the crontab of this user (needs root for others).',
+      ),
+    ],
     script: (a) {
       final userCron = a.has('user')
           ? 'crontab -l -u ${_user(a)} 2>&1'
@@ -345,7 +449,8 @@ if [ "$(id -u)" = 0 ]; then
     [ -f "$f" ] && { echo "# $f"; grep -v -E '^[[:space:]]*(#|$)' "$f"; }
   done
 fi''';
-      return fill(r'''echo '=== /etc/crontab ==='
+      return fill(
+        r'''echo '=== /etc/crontab ==='
 grep -v -E '^[[:space:]]*(#|$)' /etc/crontab 2>&1
 echo '=== /etc/cron.d ==='
 for f in /etc/cron.d/*; do [ -f "$f" ] && { echo "# $f"; grep -v -E '^[[:space:]]*(#|$)' "$f"; }; done
@@ -357,7 +462,9 @@ echo '=== systemd timers ==='
 systemctl list-timers --all --no-pager 2>/dev/null
 echo '=== at jobs ==='
 atq 2>/dev/null
-true''', {'USER': userCron});
+true''',
+        {'USER': userCron},
+      );
     },
   ),
 ];
@@ -366,16 +473,27 @@ final List<ToolDefinition> networkTools = [
   ToolDefinition(
     name: 'network',
     category: ToolCategory.network,
-    summary: 'Síť: naslouchající porty, spojení, rozhraní, routy, firewall, DNS',
+    summary:
+        'Síť: naslouchající porty, spojení, rozhraní, routy, firewall, DNS',
     description:
         'Network information. view=listening: open ports and owning '
         'processes (`ss -tulpn`); connections: established connections; '
         'interfaces: IP addresses; routes: routing table; firewall: '
         'nftables/iptables/ufw rules (needs root); dns: resolv.conf and hosts.',
     params: [
-      ToolParam.string('view', 'What to show.',
-          enumValues: ['listening', 'connections', 'interfaces', 'routes', 'firewall', 'dns'],
-          defaultValue: 'listening'),
+      ToolParam.string(
+        'view',
+        'What to show.',
+        enumValues: [
+          'listening',
+          'connections',
+          'interfaces',
+          'routes',
+          'firewall',
+          'dns',
+        ],
+        defaultValue: 'listening',
+      ),
     ],
     script: (a) {
       final body = switch (a.str('view')) {
@@ -385,12 +503,15 @@ final List<ToolDefinition> networkTools = [
           'if command -v ss >/dev/null 2>&1; then ss -tunp state established; else netstat -tunp | grep ESTABLISHED; fi',
         'interfaces' =>
           'ip -br addr 2>/dev/null && echo && ip addr 2>/dev/null || ifconfig -a',
-        'routes' => 'ip route 2>/dev/null && ip -6 route 2>/dev/null || route -n',
-        'firewall' => r'''if command -v nft >/dev/null 2>&1; then echo '=== nft list ruleset ==='; nft list ruleset 2>&1; fi
+        'routes' =>
+          'ip route 2>/dev/null && ip -6 route 2>/dev/null || route -n',
+        'firewall' =>
+          r'''if command -v nft >/dev/null 2>&1; then echo '=== nft list ruleset ==='; nft list ruleset 2>&1; fi
 if command -v iptables >/dev/null 2>&1; then echo '=== iptables -S ==='; iptables -S 2>&1; fi
 if command -v ufw >/dev/null 2>&1; then echo '=== ufw status ==='; ufw status verbose 2>&1; fi
 if command -v firewall-cmd >/dev/null 2>&1; then echo '=== firewalld ==='; firewall-cmd --list-all 2>&1; fi''',
-        _ => r'''echo '=== /etc/resolv.conf ==='; cat /etc/resolv.conf 2>&1
+        _ =>
+          r'''echo '=== /etc/resolv.conf ==='; cat /etc/resolv.conf 2>&1
 echo '=== /etc/hosts ==='; cat /etc/hosts 2>&1
 if command -v resolvectl >/dev/null 2>&1; then echo '=== resolvectl ==='; resolvectl status 2>/dev/null; fi
 true''',
@@ -410,19 +531,26 @@ final List<ToolDefinition> packageTools = [
         'optionally only those containing a text.',
     params: [
       ToolParam.string('filter', 'Only packages containing this text.'),
-      ToolParam.integer('limit', 'Maximum number of packages.',
-          defaultValue: 200, min: 1, max: 5000),
+      ToolParam.integer(
+        'limit',
+        'Maximum number of packages.',
+        defaultValue: 200,
+        min: 1,
+        max: 5000,
+      ),
     ],
-    script: (a) => fill(r'''@FILTER@
+    script: (a) => fill(
+      r'''@FILTER@
 if command -v dpkg-query >/dev/null 2>&1; then dpkg-query -W -f='${db:Status-Abbrev} ${Package} ${Version}\n'
 elif command -v rpm >/dev/null 2>&1; then rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE} installed:%{INSTALLTIME:date}\n'
 elif command -v apk >/dev/null 2>&1; then apk info -v
 elif command -v pacman >/dev/null 2>&1; then pacman -Q
 else echo 'No supported package manager found' >&2; exit 1; fi | awk 'ENVIRON["PKG_FILTER"]=="" || index(tolower($0), tolower(ENVIRON["PKG_FILTER"]))' | sort @LIM@''',
-        {
-          'FILTER': exportVar('PKG_FILTER', a.strOrNull('filter')),
-          'LIM': limit(a.integer('limit')),
-        }),
+      {
+        'FILTER': exportVar('PKG_FILTER', a.strOrNull('filter')),
+        'LIM': limit(a.integer('limit')),
+      },
+    ),
   ),
   ToolDefinition(
     name: 'package_owner',
@@ -434,11 +562,15 @@ else echo 'No supported package manager found' >&2; exit 1; fi | awk 'ENVIRON["P
         'were modified since installation (dpkg --verify / rpm -V).',
     params: [
       ToolParam.string('path', 'File path (no wildcards).', required: true),
-      ToolParam.boolean('verify', 'Verify the package files against the package database.',
-          defaultValue: false),
+      ToolParam.boolean(
+        'verify',
+        'Verify the package files against the package database.',
+        defaultValue: false,
+      ),
     ],
     timeout: const Duration(seconds: 60),
-    script: (a) => fill(r'''r=$(readlink -f -- @P@ 2>/dev/null || echo @P@)
+    script: (a) => fill(
+      r'''r=$(readlink -f -- @P@ 2>/dev/null || echo @P@)
 if command -v dpkg >/dev/null 2>&1; then
   dpkg -S -- @P@ 2>/dev/null || dpkg -S -- "$r" 2>&1 || exit 1
   if [ @VERIFY@ = 1 ]; then
@@ -454,11 +586,13 @@ elif command -v pacman >/dev/null 2>&1; then
   pacman -Qo "$r" || exit 1
   if [ @VERIFY@ = 1 ]; then pacman -Qkk "$(pacman -Qqo "$r")" 2>&1; fi
 else echo 'No supported package manager found' >&2; exit 1; fi
-true''', {
-      'P': a.path('path', allowGlob: false),
-      'VERIFY': a.flag('verify') ? '1' : '0',
-      'LIM': limit(100),
-    }),
+true''',
+      {
+        'P': a.path('path', allowGlob: false),
+        'VERIFY': a.flag('verify') ? '1' : '0',
+        'LIM': limit(100),
+      },
+    ),
   ),
   ToolDefinition(
     name: 'which',
@@ -467,14 +601,19 @@ true''', {
     description:
         'Locate an executable in PATH (`command -v`) and show the real file '
         'it points to.',
-    params: [ToolParam.string('command', 'Program name, e.g. nginx.', required: true)],
-    script: (a) => fill(r'''c=@C@
+    params: [
+      ToolParam.string('command', 'Program name, e.g. nginx.', required: true),
+    ],
+    script: (a) => fill(
+      r'''c=@C@
 p=$(command -v "$c") || { echo "$c: not found in PATH ($PATH)"; exit 1; }
 echo "$p"
 case "$p" in
   /*) ls -l -- "$p"; printf 'resolved: '; readlink -f -- "$p";;
   *) echo '(shell builtin, function or alias)';;
-esac''', {'C': a.ident('command', commandNamePattern, 'expected a program name')}),
+esac''',
+      {'C': a.ident('command', commandNamePattern, 'expected a program name')},
+    ),
   ),
 ];
 
@@ -488,34 +627,52 @@ final List<ToolDefinition> containerTools = [
         'images, logs of a container or `inspect` output (mounts, env, '
         'network). Needs docker group or root.',
     params: [
-      ToolParam.string('view', 'What to show.',
-          enumValues: ['containers', 'images', 'logs', 'inspect'],
-          defaultValue: 'containers'),
+      ToolParam.string(
+        'view',
+        'What to show.',
+        enumValues: ['containers', 'images', 'logs', 'inspect'],
+        defaultValue: 'containers',
+      ),
       ToolParam.string('container', 'Container name or ID (for logs/inspect).'),
-      ToolParam.integer('lines', 'Log lines (logs view).',
-          defaultValue: 100, min: 1, max: 3000),
+      ToolParam.integer(
+        'lines',
+        'Log lines (logs view).',
+        defaultValue: 100,
+        min: 1,
+        max: 3000,
+      ),
     ],
     script: (a) {
       final view = a.str('view');
       String command;
       if (view == 'containers') {
         command =
-            r'''"$d" ps -a --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' ''' .trimRight();
+            r'''"$d" ps -a --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' '''
+                .trimRight();
       } else if (view == 'images') {
         command = r'"$d" images';
       } else {
         if (!a.has('container')) {
-          throw ToolArgumentException('Parameter "container" is required for view=$view.');
+          throw ToolArgumentException(
+            'Parameter "container" is required for view=$view.',
+          );
         }
-        final c = a.ident('container', containerNamePattern, 'expected a container name or ID');
+        final c = a.ident(
+          'container',
+          containerNamePattern,
+          'expected a container name or ID',
+        );
         command = view == 'logs'
             ? '"\$d" logs --tail ${a.integer('lines')} -t $c 2>&1'
             : '"\$d" inspect $c';
       }
-      return fill(r'''d=docker
+      return fill(
+        r'''d=docker
 command -v docker >/dev/null 2>&1 || d=podman
 command -v "$d" >/dev/null 2>&1 || { echo 'Neither docker nor podman is installed.' >&2; exit 127; }
-@CMD@ @LIM@''', {'CMD': command, 'LIM': limit(600)});
+@CMD@ @LIM@''',
+        {'CMD': command, 'LIM': limit(600)},
+      );
     },
   ),
 ];

@@ -90,9 +90,9 @@ abstract class LlmClient {
 }
 
 LlmClient createLlmClient(LlmConfig config) => switch (config.provider) {
-      LlmProvider.ollama => OllamaClient(config),
-      LlmProvider.openAiCompatible => OpenAiCompatibleClient(config),
-    };
+  LlmProvider.ollama => OllamaClient(config),
+  LlmProvider.openAiCompatible => OpenAiCompatibleClient(config),
+};
 
 /// Small HTTP helper shared by the clients (dart:io works on every
 /// platform the app targets).
@@ -137,8 +137,10 @@ class HttpJson {
         throw LlmException(_connectionHint(uri, e));
       } on HttpException catch (e) {
         if (cancel?.isCancelled ?? false) throw const CancelledException();
-        throw LlmException('Spojení se serverem modelu selhalo: $e',
-            retryable: true);
+        throw LlmException(
+          'Spojení se serverem modelu selhalo: $e',
+          retryable: true,
+        );
       }
       if (response.statusCode >= 400) {
         final text = await utf8.decodeStream(response);
@@ -151,12 +153,18 @@ class HttpJson {
       final lines = response
           .transform(utf8.decoder)
           .transform(const LineSplitter())
-          .timeout(idleTimeout, onTimeout: (sink) {
-        sink.addError(LlmException(
-            'Server modelu neodpověděl ${idleTimeout.inSeconds} s.',
-            retryable: true));
-        sink.close();
-      });
+          .timeout(
+            idleTimeout,
+            onTimeout: (sink) {
+              sink.addError(
+                LlmException(
+                  'Server modelu neodpověděl ${idleTimeout.inSeconds} s.',
+                  retryable: true,
+                ),
+              );
+              sink.close();
+            },
+          );
       try {
         // `await for` (not `yield*`) so that stream errors land in the
         // catch blocks below.
@@ -165,8 +173,10 @@ class HttpJson {
         }
       } on HttpException catch (e) {
         if (cancel?.isCancelled ?? false) throw const CancelledException();
-        throw LlmException('Spojení se serverem modelu bylo přerušeno: $e',
-            retryable: true);
+        throw LlmException(
+          'Spojení se serverem modelu bylo přerušeno: $e',
+          retryable: true,
+        );
       }
       if (cancel?.isCancelled ?? false) throw const CancelledException();
     } on Object catch (e) {
@@ -186,7 +196,8 @@ class HttpJson {
       _send('POST', uri, body);
 
   Future<Object?> _send(String method, Uri uri, Object? body) async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10);
     try {
       final request = await client.openUrl(method, uri);
       headers.forEach(request.headers.set);
@@ -196,12 +207,15 @@ class HttpJson {
         request.contentLength = bytes.length;
         request.add(bytes);
       }
-      final response =
-          await request.close().timeout(const Duration(seconds: 30));
+      final response = await request.close().timeout(
+        const Duration(seconds: 30),
+      );
       final text = await utf8.decodeStream(response);
       if (response.statusCode >= 400) {
-        throw LlmException(errorMessage(text, response.statusCode),
-            statusCode: response.statusCode);
+        throw LlmException(
+          errorMessage(text, response.statusCode),
+          statusCode: response.statusCode,
+        );
       }
       return text.isEmpty ? null : jsonDecode(text);
     } on SocketException catch (e) {
@@ -236,11 +250,13 @@ class HttpJson {
     }
     if (message.length > 500) message = '${message.substring(0, 500)}...';
     if (status == 404 && message.contains('not found')) {
-      message += ' - stáhněte model příkazem `ollama pull <model>` nebo '
+      message +=
+          ' - stáhněte model příkazem `ollama pull <model>` nebo '
           'zkontrolujte název modelu v nastavení.';
     }
     if (message.contains('does not support tools')) {
-      message += ' - zvolte model s podporou nástrojů (tools), např. '
+      message +=
+          ' - zvolte model s podporou nástrojů (tools), např. '
           'qwen3.5:9b.';
     }
     return 'Server modelu vrátil chybu $status: $message';

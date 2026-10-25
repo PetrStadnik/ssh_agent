@@ -56,25 +56,26 @@ class ConnectionProfile {
   /// ARGB colour used for the badge in the UI.
   int color;
 
-  String get address => port == 22 ? '$username@$host' : '$username@$host:$port';
+  String get address =>
+      port == 22 ? '$username@$host' : '$username@$host:$port';
 
   String get label => '$name ($address)';
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'name': name,
-        'host': host,
-        'port': port,
-        'username': username,
-        'authMethod': authMethod.name,
-        'privateKeyPath': privateKeyPath,
-        'hostKeyType': hostKeyType,
-        'hostKeyFingerprint': hostKeyFingerprint,
-        'elevation': elevation.name,
-        'initialDirectory': initialDirectory,
-        'notes': notes,
-        'color': color,
-      };
+    'id': id,
+    'name': name,
+    'host': host,
+    'port': port,
+    'username': username,
+    'authMethod': authMethod.name,
+    'privateKeyPath': privateKeyPath,
+    'hostKeyType': hostKeyType,
+    'hostKeyFingerprint': hostKeyFingerprint,
+    'elevation': elevation.name,
+    'initialDirectory': initialDirectory,
+    'notes': notes,
+    'color': color,
+  };
 
   factory ConnectionProfile.fromJson(Map<String, Object?> json) =>
       ConnectionProfile(
@@ -124,18 +125,18 @@ class ProfileSecrets {
   final String? elevationPassword;
 
   Map<String, String> toMap() => {
-        'password': ?password,
-        'privateKey': ?privateKey,
-        'passphrase': ?passphrase,
-        'elevationPassword': ?elevationPassword,
-      };
+    'password': ?password,
+    'privateKey': ?privateKey,
+    'passphrase': ?passphrase,
+    'elevationPassword': ?elevationPassword,
+  };
 
   factory ProfileSecrets.fromMap(Map<String, String?> map) => ProfileSecrets(
-        password: _nonEmpty(map['password']),
-        privateKey: _nonEmpty(map['privateKey']),
-        passphrase: _nonEmpty(map['passphrase']),
-        elevationPassword: _nonEmpty(map['elevationPassword']),
-      );
+    password: _nonEmpty(map['password']),
+    privateKey: _nonEmpty(map['privateKey']),
+    passphrase: _nonEmpty(map['passphrase']),
+    elevationPassword: _nonEmpty(map['elevationPassword']),
+  );
 
   static String? _nonEmpty(String? value) =>
       value == null || value.isEmpty ? null : value;

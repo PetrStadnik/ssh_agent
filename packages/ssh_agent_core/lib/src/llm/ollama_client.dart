@@ -37,8 +37,7 @@ class OllamaClient implements LlmClient {
     try {
       return await _chat(messages, tools, think, onDelta, cancel);
     } on LlmException catch (e) {
-      if (think != null &&
-          e.message.contains('does not support thinking')) {
+      if (think != null && e.message.contains('does not support thinking')) {
         _thinkUnsupported = true;
         return _chat(messages, tools, null, onDelta, cancel);
       }
@@ -46,20 +45,22 @@ class OllamaClient implements LlmClient {
     }
   }
 
-  Map<String, Object?> buildRequest(List<ChatMessage> messages,
-          List<Map<String, Object?>> tools, Object? think) =>
-      {
-        'model': config.model,
-        'messages': [for (final m in messages) encodeMessage(m)],
-        if (tools.isNotEmpty) 'tools': tools,
-        'stream': true,
-        'think': ?think,
-        'keep_alive': config.keepAlive,
-        'options': {
-          'num_ctx': config.contextLength,
-          'temperature': config.temperature,
-        },
-      };
+  Map<String, Object?> buildRequest(
+    List<ChatMessage> messages,
+    List<Map<String, Object?>> tools,
+    Object? think,
+  ) => {
+    'model': config.model,
+    'messages': [for (final m in messages) encodeMessage(m)],
+    if (tools.isNotEmpty) 'tools': tools,
+    'stream': true,
+    'think': ?think,
+    'keep_alive': config.keepAlive,
+    'options': {
+      'num_ctx': config.contextLength,
+      'temperature': config.temperature,
+    },
+  };
 
   static Map<String, Object?> encodeMessage(ChatMessage m) {
     switch (m.role) {
@@ -120,8 +121,10 @@ class OllamaClient implements LlmClient {
       if (json is! Map) continue;
       final error = json['error'];
       if (error != null) {
-        throw LlmException('Ollama: $error',
-            retryable: _isToolParseError('$error'));
+        throw LlmException(
+          'Ollama: $error',
+          retryable: _isToolParseError('$error'),
+        );
       }
       final message = json['message'];
       if (message is Map) {
@@ -176,23 +179,32 @@ class OllamaClient implements LlmClient {
     final args = function['arguments'];
     if (args is Map) {
       return ToolCall(
-          id: id, name: name, arguments: Map<String, Object?>.from(args));
+        id: id,
+        name: name,
+        arguments: Map<String, Object?>.from(args),
+      );
     }
     if (args is String) {
       try {
-        final decoded = args.trim().isEmpty ? <String, Object?>{} : jsonDecode(args);
+        final decoded = args.trim().isEmpty
+            ? <String, Object?>{}
+            : jsonDecode(args);
         if (decoded is Map) {
           return ToolCall(
-              id: id, name: name, arguments: Map<String, Object?>.from(decoded));
+            id: id,
+            name: name,
+            arguments: Map<String, Object?>.from(decoded),
+          );
         }
       } on FormatException {
         // fall through
       }
       return ToolCall(
-          id: id,
-          name: name,
-          arguments: const {},
-          argumentsError: 'Arguments are not a JSON object: $args');
+        id: id,
+        name: name,
+        arguments: const {},
+        argumentsError: 'Arguments are not a JSON object: $args',
+      );
     }
     return ToolCall(id: id, name: name, arguments: const {});
   }
@@ -217,7 +229,9 @@ class OllamaClient implements LlmClient {
 
   @override
   Future<ModelInfo?> modelInfo() async {
-    final json = await _http.postJson(_uri('/api/show'), {'model': config.model});
+    final json = await _http.postJson(_uri('/api/show'), {
+      'model': config.model,
+    });
     if (json is! Map) return null;
     int? context;
     final info = json['model_info'];

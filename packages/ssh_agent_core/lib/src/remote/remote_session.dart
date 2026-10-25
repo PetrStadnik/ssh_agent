@@ -11,8 +11,8 @@ class RemoteSession {
     this.elevationPassword,
     String? initialDirectory,
   }) : cwd = (initialDirectory == null || initialDirectory.trim().isEmpty)
-            ? null
-            : initialDirectory.trim();
+           ? null
+           : initialDirectory.trim();
 
   final RemoteExecutor executor;
   final ElevationMethod elevation;
@@ -41,7 +41,9 @@ class RemoteSession {
   /// The script as executed by `sh`, including the working directory.
   String scriptWithContext(String script) {
     final dir = cwd;
-    final cd = dir == null ? '' : 'cd -- ${shPath(dir, allowGlob: false)} || exit 1\n';
+    final cd = dir == null
+        ? ''
+        : 'cd -- ${shPath(dir, allowGlob: false)} || exit 1\n';
     return '$_prelude\n$cd$script';
   }
 
@@ -63,7 +65,8 @@ class RemoteSession {
     switch (elevation) {
       case ElevationMethod.none:
         throw ToolArgumentException(
-            'Switching user is disabled for this server profile.');
+          'Switching user is disabled for this server profile.',
+        );
       case ElevationMethod.sudo:
         final mode = elevationPassword == null ? '-n' : "-S -p ''";
         return 'sudo $mode -u $quotedUser -- $command';
@@ -84,18 +87,24 @@ class RemoteSession {
     final command = buildCommand(script, asUser: asUser);
     final elevated = user != null && user != loginUser;
     if (elevated && elevation == ElevationMethod.su) {
-      return executor.execute(command,
-          timeout: timeout,
-          maxOutputBytes: maxOutputBytes,
-          pty: true,
-          promptPassword: elevationPassword);
-    }
-    return executor.execute(command,
+      return executor.execute(
+        command,
         timeout: timeout,
         maxOutputBytes: maxOutputBytes,
-        stdinData: elevated && elevation == ElevationMethod.sudo &&
-                elevationPassword != null
-            ? '$elevationPassword\n'
-            : null);
+        pty: true,
+        promptPassword: elevationPassword,
+      );
+    }
+    return executor.execute(
+      command,
+      timeout: timeout,
+      maxOutputBytes: maxOutputBytes,
+      stdinData:
+          elevated &&
+              elevation == ElevationMethod.sudo &&
+              elevationPassword != null
+          ? '$elevationPassword\n'
+          : null,
+    );
   }
 }

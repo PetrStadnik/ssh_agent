@@ -9,10 +9,12 @@ import 'llm_config.dart';
 /// Jan, and Ollama's `/v1` endpoint.
 class OpenAiCompatibleClient implements LlmClient {
   OpenAiCompatibleClient(this.config)
-      : _http = HttpJson(headers: {
+    : _http = HttpJson(
+        headers: {
           if (config.apiKey != null && config.apiKey!.isNotEmpty)
             'Authorization': 'Bearer ${config.apiKey}',
-        });
+        },
+      );
 
   @override
   final LlmConfig config;
@@ -29,17 +31,18 @@ class OpenAiCompatibleClient implements LlmClient {
   }
 
   Map<String, Object?> buildRequest(
-          List<ChatMessage> messages, List<Map<String, Object?>> tools) =>
-      {
-        'model': config.model,
-        'messages': [for (final m in messages) encodeMessage(m)],
-        if (tools.isNotEmpty) 'tools': tools,
-        if (tools.isNotEmpty) 'tool_choice': 'auto',
-        'stream': true,
-        'temperature': config.temperature,
-        if (config.thinking.reasoningEffort != null)
-          'reasoning_effort': config.thinking.reasoningEffort,
-      };
+    List<ChatMessage> messages,
+    List<Map<String, Object?>> tools,
+  ) => {
+    'model': config.model,
+    'messages': [for (final m in messages) encodeMessage(m)],
+    if (tools.isNotEmpty) 'tools': tools,
+    if (tools.isNotEmpty) 'tool_choice': 'auto',
+    'stream': true,
+    'temperature': config.temperature,
+    if (config.thinking.reasoningEffort != null)
+      'reasoning_effort': config.thinking.reasoningEffort,
+  };
 
   static Map<String, Object?> encodeMessage(ChatMessage m) {
     switch (m.role) {
@@ -168,7 +171,8 @@ class OpenAiCompatibleClient implements LlmClient {
       thinking: thinking.toString(),
       toolCalls: [
         for (final k in keys)
-          if (partial[k]!.name.isNotEmpty) partial[k]!.build(() => 'call_${++_callCounter}'),
+          if (partial[k]!.name.isNotEmpty)
+            partial[k]!.build(() => 'call_${++_callCounter}'),
       ],
       usage: usage,
       finishReason: finishReason,
@@ -204,9 +208,10 @@ class _PartialCall {
       final decoded = jsonDecode(text);
       if (decoded is Map) {
         return ToolCall(
-            id: callId,
-            name: name.toString(),
-            arguments: Map<String, Object?>.from(decoded));
+          id: callId,
+          name: name.toString(),
+          arguments: Map<String, Object?>.from(decoded),
+        );
       }
     } on FormatException {
       // handled below

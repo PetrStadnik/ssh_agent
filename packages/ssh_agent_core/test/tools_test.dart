@@ -10,12 +10,60 @@ import 'tool_samples.dart';
 /// in a script built by a tool.
 final List<RegExp> forbidden = [
   for (final word in [
-    'rm', 'rmdir', 'mv', 'cp', 'ln', 'touch', 'mkdir', 'chmod', 'chown',
-    'chgrp', 'chattr', 'setfacl', 'tee', 'dd', 'truncate', 'shred', 'install',
-    'kill', 'pkill', 'killall', 'reboot', 'shutdown', 'halt', 'poweroff',
-    'useradd', 'userdel', 'usermod', 'groupadd', 'groupdel', 'chpasswd', 'mount', 'umount', 'mkfs', 'fdisk', 'parted', 'apt', 'apt-get',
-    'yum', 'dnf', 'pip', 'npm', 'curl', 'wget', 'scp', 'rsync', 'nc', 'ncat',
-    'visudo', 'vi', 'vim', 'nano', 'ed', 'patch', 'git',
+    'rm',
+    'rmdir',
+    'mv',
+    'cp',
+    'ln',
+    'touch',
+    'mkdir',
+    'chmod',
+    'chown',
+    'chgrp',
+    'chattr',
+    'setfacl',
+    'tee',
+    'dd',
+    'truncate',
+    'shred',
+    'install',
+    'kill',
+    'pkill',
+    'killall',
+    'reboot',
+    'shutdown',
+    'halt',
+    'poweroff',
+    'useradd',
+    'userdel',
+    'usermod',
+    'groupadd',
+    'groupdel',
+    'chpasswd',
+    'mount',
+    'umount',
+    'mkfs',
+    'fdisk',
+    'parted',
+    'apt',
+    'apt-get',
+    'yum',
+    'dnf',
+    'pip',
+    'npm',
+    'curl',
+    'wget',
+    'scp',
+    'rsync',
+    'nc',
+    'ncat',
+    'visudo',
+    'vi',
+    'vim',
+    'nano',
+    'ed',
+    'patch',
+    'git',
   ])
     RegExp('(^|[\\s;&(`])$word(\$|[\\s;|&)])'),
   RegExp(r'sed\s+(-[a-zA-Z]*i|--in-place)'),
@@ -24,7 +72,9 @@ final List<RegExp> forbidden = [
   RegExp(r'-fprint'),
   RegExp(r'-ok\b'),
   RegExp(r'crontab\s+-[er]'),
-  RegExp(r'systemctl\s+(start|stop|restart|reload|enable|disable|mask|unmask|kill|edit|set-property|daemon-reload)'),
+  RegExp(
+    r'systemctl\s+(start|stop|restart|reload|enable|disable|mask|unmask|kill|edit|set-property|daemon-reload)',
+  ),
   RegExp(r'docker\s+(rm|run|exec|kill|stop|start|restart|pull|push|cp|commit)'),
   RegExp(r'nft\s+(add|delete|flush|insert|replace|create)'),
   RegExp(r'iptables\s+-[ADIFXNPR]\b'),
@@ -106,8 +156,11 @@ void main() {
       final encoded = jsonEncode(schema);
       final function = (jsonDecode(encoded) as Map)['function'] as Map;
       expect(function['name'], tool.name);
-      expect((function['description'] as String).length, greaterThan(20),
-          reason: tool.name);
+      expect(
+        (function['description'] as String).length,
+        greaterThan(20),
+        reason: tool.name,
+      );
       final params = function['parameters'] as Map;
       expect(params['type'], 'object');
       for (final required in params['required'] as List) {
@@ -125,8 +178,11 @@ void main() {
   test('scripts built from sample arguments contain no modifying command', () {
     for (final entry in samples.entries) {
       final call = registry.prepare('x', entry.key, entry.value, session);
-      expect(violation(call.script), isNull,
-          reason: '${entry.key}: ${call.script}');
+      expect(
+        violation(call.script),
+        isNull,
+        reason: '${entry.key}: ${call.script}',
+      );
     }
   });
 
@@ -146,12 +202,21 @@ void main() {
             // Every hostile value must appear only inside quotes: removing
             // all single-quoted parts must remove the payload.
             final unquoted = unquotedText(call.script);
-            expect(unquoted, isNot(contains('rm -rf')),
-                reason: '${tool.name}.${param.name}: ${call.script}');
-            expect(unquoted, isNot(contains('touch /tmp/p')),
-                reason: '${tool.name}.${param.name}: ${call.script}');
-            expect(unquoted, isNot(contains('tee /etc/x')),
-                reason: '${tool.name}.${param.name}: ${call.script}');
+            expect(
+              unquoted,
+              isNot(contains('rm -rf')),
+              reason: '${tool.name}.${param.name}: ${call.script}',
+            );
+            expect(
+              unquoted,
+              isNot(contains('touch /tmp/p')),
+              reason: '${tool.name}.${param.name}: ${call.script}',
+            );
+            expect(
+              unquoted,
+              isNot(contains('tee /etc/x')),
+              reason: '${tool.name}.${param.name}: ${call.script}',
+            );
           } on ToolArgumentException {
             // Rejected by validation - fine.
           }
@@ -163,54 +228,82 @@ void main() {
 
   group('argument handling', () {
     test('missing required parameter is reported to the model', () {
-      expect(() => registry.prepare('x', 'stat', {}, session),
-          throwsA(isA<ToolArgumentException>()));
+      expect(
+        () => registry.prepare('x', 'stat', {}, session),
+        throwsA(isA<ToolArgumentException>()),
+      );
     });
 
     test('unknown tool lists the available ones', () {
       expect(
-          () => registry.prepare('x', 'rm', {'path': '/'}, session),
-          throwsA(isA<UnknownToolException>().having(
-              (e) => e.toString(), 'message', contains('stat'))));
+        () => registry.prepare('x', 'rm', {'path': '/'}, session),
+        throwsA(
+          isA<UnknownToolException>().having(
+            (e) => e.toString(),
+            'message',
+            contains('stat'),
+          ),
+        ),
+      );
     });
 
     test('numbers and booleans sent as strings are coerced and clamped', () {
-      final call = registry.prepare(
-          'x', 'tail', {'path': '/var/log/syslog', 'lines': '999999'}, session);
+      final call = registry.prepare('x', 'tail', {
+        'path': '/var/log/syslog',
+        'lines': '999999',
+      }, session);
       expect(call.args.integer('lines'), 3000);
-      final ls = registry.prepare(
-          'x', 'ls', {'path': '/', 'recursive': 'true'}, session);
+      final ls = registry.prepare('x', 'ls', {
+        'path': '/',
+        'recursive': 'true',
+      }, session);
       expect(ls.args.flag('recursive'), isTrue);
     });
 
     test('enum values are case-insensitive and validated', () {
-      final call =
-          registry.prepare('x', 'checksum', {'path': '/a', 'algorithm': 'MD5'}, session);
+      final call = registry.prepare('x', 'checksum', {
+        'path': '/a',
+        'algorithm': 'MD5',
+      }, session);
       expect(call.script, startsWith('md5sum'));
       expect(
-          () => registry.prepare(
-              'x', 'checksum', {'path': '/a', 'algorithm': 'crc'}, session),
-          throwsA(isA<ToolArgumentException>()));
+        () => registry.prepare('x', 'checksum', {
+          'path': '/a',
+          'algorithm': 'crc',
+        }, session),
+        throwsA(isA<ToolArgumentException>()),
+      );
     });
 
     test('switch_user is only offered when the profile allows it', () {
       final plain = RemoteSession(executor: FakeExecutor());
-      expect(registry.available(plain).map((t) => t.name),
-          isNot(contains('switch_user')));
-      expect(registry.available(session).map((t) => t.name),
-          contains('switch_user'));
+      expect(
+        registry.available(plain).map((t) => t.name),
+        isNot(contains('switch_user')),
+      );
+      expect(
+        registry.available(session).map((t) => t.name),
+        contains('switch_user'),
+      );
     });
 
     test('disabled categories are not offered', () {
       final limited = ToolRegistry(enabledCategories: {ToolCategory.files});
-      expect(limited.available(session).every((t) => t.category == ToolCategory.files),
-          isTrue);
+      expect(
+        limited
+            .available(session)
+            .every((t) => t.category == ToolCategory.files),
+        isTrue,
+      );
     });
   });
 
   group('command wrapping', () {
     test('runs in the working directory with a predictable environment', () {
-      final s = RemoteSession(executor: FakeExecutor(), initialDirectory: '/var/www');
+      final s = RemoteSession(
+        executor: FakeExecutor(),
+        initialDirectory: '/var/www',
+      );
       final command = s.buildCommand('ls');
       expect(command, startsWith('sh -c '));
       expect(s.scriptWithContext('ls'), contains("cd -- '/var/www' || exit 1"));
@@ -218,32 +311,40 @@ void main() {
     });
 
     test('sudo without password never prompts (-n)', () {
-      final s = RemoteSession(executor: FakeExecutor(), elevation: ElevationMethod.sudo)
-        ..runAs = 'root';
+      final s = RemoteSession(
+        executor: FakeExecutor(),
+        elevation: ElevationMethod.sudo,
+      )..runAs = 'root';
       expect(s.buildCommand('id'), startsWith("sudo -n -u 'root' -- sh -c "));
     });
 
     test('sudo with password reads it from stdin (-S)', () {
       final s = RemoteSession(
-          executor: FakeExecutor(),
-          elevation: ElevationMethod.sudo,
-          elevationPassword: 'pw')
-        ..runAs = 'root';
+        executor: FakeExecutor(),
+        elevation: ElevationMethod.sudo,
+        elevationPassword: 'pw',
+      )..runAs = 'root';
       expect(s.buildCommand('id'), startsWith("sudo -S -p '' -u 'root' -- "));
     });
 
     test('su runs a POSIX shell as the target user', () {
-      final s = RemoteSession(executor: FakeExecutor(), elevation: ElevationMethod.su)
-        ..runAs = 'www-data';
-      expect(s.buildCommand('id'), startsWith("LC_ALL=C su -s /bin/sh 'www-data' -c "));
+      final s = RemoteSession(
+        executor: FakeExecutor(),
+        elevation: ElevationMethod.su,
+      )..runAs = 'www-data';
+      expect(
+        s.buildCommand('id'),
+        startsWith("LC_ALL=C su -s /bin/sh 'www-data' -c "),
+      );
     });
   });
 
   test('formatForModel keeps head and tail of long output', () {
     final long = List.generate(5000, (i) => 'line $i').join('\n');
     final text = ToolRegistry.formatForModel(
-        ToolResult(stdout: long, exitCode: 0),
-        maxChars: 2000);
+      ToolResult(stdout: long, exitCode: 0),
+      maxChars: 2000,
+    );
     expect(text.length, lessThan(2300));
     expect(text, contains('line 0'));
     expect(text, contains('line 4999'));
@@ -252,12 +353,15 @@ void main() {
 
   test('binary output is replaced by a notice', () async {
     final s = RemoteSession(
-        executor: FakeExecutor(
-            respond: (_) => const CommandResult(
-                stdout: 'ELF\u0000\u0001',
-                stderr: '',
-                exitCode: 0,
-                duration: Duration.zero)));
+      executor: FakeExecutor(
+        respond: (_) => const CommandResult(
+          stdout: 'ELF\u0000\u0001',
+          stderr: '',
+          exitCode: 0,
+          duration: Duration.zero,
+        ),
+      ),
+    );
     final call = registry.prepare('x', 'cat', {'path': '/bin/ls'}, s);
     final result = await registry.execute(call, s);
     expect(result.stdout, contains('Binary content'));
@@ -265,9 +369,15 @@ void main() {
 
   test('exit code meaning is added as a note', () async {
     final s = RemoteSession(
-        executor: FakeExecutor(
-            respond: (_) => const CommandResult(
-                stdout: '', stderr: '', exitCode: 1, duration: Duration.zero)));
+      executor: FakeExecutor(
+        respond: (_) => const CommandResult(
+          stdout: '',
+          stderr: '',
+          exitCode: 1,
+          duration: Duration.zero,
+        ),
+      ),
+    );
     final call = registry.prepare('x', 'grep', {'pattern': 'x'}, s);
     final result = await registry.execute(call, s);
     expect(result.note, 'No matches found.');

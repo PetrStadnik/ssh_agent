@@ -30,9 +30,9 @@ class ToolParam {
     this.required = false,
     this.defaultValue,
     this.enumValues,
-  })  : type = ParamType.string,
-        min = null,
-        max = null;
+  }) : type = ParamType.string,
+       min = null,
+       max = null;
 
   const ToolParam.integer(
     this.name,
@@ -41,18 +41,15 @@ class ToolParam {
     this.defaultValue,
     this.min,
     this.max,
-  })  : type = ParamType.integer,
-        enumValues = null;
+  }) : type = ParamType.integer,
+       enumValues = null;
 
-  const ToolParam.boolean(
-    this.name,
-    this.description, {
-    this.defaultValue,
-  })  : type = ParamType.boolean,
-        required = false,
-        enumValues = null,
-        min = null,
-        max = null;
+  const ToolParam.boolean(this.name, this.description, {this.defaultValue})
+    : type = ParamType.boolean,
+      required = false,
+      enumValues = null,
+      min = null,
+      max = null;
 
   final String name;
   final ParamType type;
@@ -85,8 +82,8 @@ class ToolParam {
 typedef ScriptBuilder = String Function(ToolArgs args);
 
 /// Custom execution (e.g. `cd` updates the session after the command).
-typedef ToolHandler = Future<ToolResult> Function(
-    PreparedToolCall call, RemoteSession session);
+typedef ToolHandler =
+    Future<ToolResult> Function(PreparedToolCall call, RemoteSession session);
 
 /// A predefined, read-only action the agent can call.
 class ToolDefinition {
@@ -135,20 +132,20 @@ class ToolDefinition {
 
   /// Function declaration in the format used by Ollama and OpenAI.
   Map<String, Object?> toFunctionSchema() => {
-        'type': 'function',
-        'function': {
-          'name': name,
-          'description': description,
-          'parameters': {
-            'type': 'object',
-            'properties': {for (final p in params) p.name: p.toJsonSchema()},
-            'required': [
-              for (final p in params)
-                if (p.required) p.name
-            ],
-          },
-        },
-      };
+    'type': 'function',
+    'function': {
+      'name': name,
+      'description': description,
+      'parameters': {
+        'type': 'object',
+        'properties': {for (final p in params) p.name: p.toJsonSchema()},
+        'required': [
+          for (final p in params)
+            if (p.required) p.name,
+        ],
+      },
+    },
+  };
 
   /// Validates and normalises raw arguments sent by the model.
   ToolArgs parseArguments(Map<String, Object?> raw) {
@@ -156,7 +153,9 @@ class ToolDefinition {
     final warnings = <String>[];
     final known = {for (final p in params) p.name};
     for (final key in raw.keys) {
-      if (!known.contains(key)) warnings.add('Unknown parameter "$key" ignored.');
+      if (!known.contains(key)) {
+        warnings.add('Unknown parameter "$key" ignored.');
+      }
     }
     for (final param in params) {
       var value = raw[param.name];
@@ -166,7 +165,8 @@ class ToolDefinition {
       if (value == null) {
         if (param.required) {
           throw ToolArgumentException(
-              'Missing required parameter "${param.name}" for tool "$name".');
+            'Missing required parameter "${param.name}" for tool "$name".',
+          );
         }
         values[param.name] = param.defaultValue;
         continue;
@@ -183,11 +183,13 @@ class ToolDefinition {
         rejectControlCharacters(text, param.name);
         if (param.enumValues != null) {
           final match = param.enumValues!.where(
-              (e) => e.toLowerCase() == text.trim().toLowerCase());
+            (e) => e.toLowerCase() == text.trim().toLowerCase(),
+          );
           if (match.isEmpty) {
             throw ToolArgumentException(
-                'Parameter "${param.name}" must be one of: '
-                '${param.enumValues!.join(', ')}.');
+              'Parameter "${param.name}" must be one of: '
+              '${param.enumValues!.join(', ')}.',
+            );
           }
           return match.first;
         }
@@ -199,12 +201,14 @@ class ToolDefinition {
         } else if (value is num) {
           number = value.round();
         } else if (value is String) {
-          number = int.tryParse(value.trim()) ??
+          number =
+              int.tryParse(value.trim()) ??
               double.tryParse(value.trim())?.round();
         }
         if (number == null) {
           throw ToolArgumentException(
-              'Parameter "${param.name}" must be an integer.');
+            'Parameter "${param.name}" must be an integer.',
+          );
         }
         if (param.min != null && number < param.min!) number = param.min!;
         if (param.max != null && number > param.max!) number = param.max!;
@@ -218,7 +222,8 @@ class ToolDefinition {
           return false;
         }
         throw ToolArgumentException(
-            'Parameter "${param.name}" must be true or false.');
+          'Parameter "${param.name}" must be true or false.',
+        );
     }
   }
 }

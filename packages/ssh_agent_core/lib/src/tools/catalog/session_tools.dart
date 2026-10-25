@@ -18,8 +18,11 @@ final List<ToolDefinition> sessionTools = [
         'Change the working directory of the agent session, like `cd`. It '
         'only affects how relative paths are resolved in later tool calls.',
     params: [
-      ToolParam.string('path', 'Directory to move to (absolute, relative or ~).',
-          required: true),
+      ToolParam.string(
+        'path',
+        'Directory to move to (absolute, relative or ~).',
+        required: true,
+      ),
     ],
     script: (a) => 'cd -- ${a.path('path', allowGlob: false)} && pwd',
     handler: (call, session) async {
@@ -56,8 +59,10 @@ final List<ToolDefinition> sessionTools = [
         'access. Use "-" to switch back to the login user.',
     params: [
       ToolParam.string(
-          'user', 'Target user, e.g. root or www-data; "-" = back to login user.',
-          required: true),
+        'user',
+        'Target user, e.g. root or www-data; "-" = back to login user.',
+        required: true,
+      ),
     ],
     script: (a) {
       final user = a.str('user').trim();
@@ -81,14 +86,18 @@ final List<ToolDefinition> sessionTools = [
           note: 'Commands now run as the login user ${session.loginUser}.',
         );
       }
-      final r = await session.run(call.script,
-          asUser: target, timeout: call.tool.timeout);
+      final r = await session.run(
+        call.script,
+        asUser: target,
+        timeout: call.tool.timeout,
+      );
       final result = ToolResult.fromCommand(r);
       if (r.success) {
         session.runAs = target;
         result.note = 'All following commands run as $target.';
       } else {
-        result.note = 'Switching to $target failed; commands still run as '
+        result.note =
+            'Switching to $target failed; commands still run as '
             '${session.effectiveUser}.';
       }
       return result;
