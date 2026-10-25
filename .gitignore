@@ -1,0 +1,18 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec_overrides.yaml
+coverage/
+*.iml
+.idea/
+.vscode/
+# OS
+.DS_Store
+Thumbs.db
+# Local secrets / test artefacts
+*.pem
+*.key
+.env
