@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ssh_agent/app.dart';
@@ -84,6 +86,68 @@ void main() {
 
     final conversation = state.conversations.single;
     expect(conversation.title, 'Kdy se změnil /etc/passwd?');
+  });
+
+  testWidgets('progress and server output are shown while a tool runs', (
+    tester,
+  ) async {
+    await setSize(tester, const Size(1280, 900));
+    final hold = Completer<void>();
+    final llms = <ScriptedLlm>[];
+    final state = await createState(
+      profiles: [sampleProfile()],
+      hold: hold,
+      llms: llms,
+      responses: [
+        const LlmResponse(
+          content: '',
+          toolCalls: [
+            ToolCall(
+              id: 'c1',
+              name: 'stat',
+              arguments: {'path': '/etc/passwd'},
+            ),
+          ],
+        ),
+        const LlmResponse(content: 'Hotovo, soubor existuje.'),
+      ],
+    );
+    // The model is loaded in the background as soon as the app starts.
+    expect(llms.first.warmUps, 1);
+
+    await tester.pumpWidget(SshAgentApp(state: state));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('composer-input')),
+      'Existuje /etc/passwd?',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('send-button')));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    // The command is still running: the connection, the model step, the
+    // current activity and the output received so far are visible.
+    expect(find.textContaining('Připojeno k serveru web-prod'), findsOneWidget);
+    expect(find.textContaining('Krok 1'), findsOneWidget);
+    final status = tester.widget<Text>(find.byKey(const Key('live-status')));
+    expect(status.data, contains('Na serveru běží stat'));
+    expect(find.byKey(const Key('live-output')), findsOneWidget);
+    expect(find.textContaining('Běží na serveru'), findsOneWidget);
+    expect(find.textContaining('File: /etc/passwd'), findsOneWidget);
+    expect(find.textContaining('Modify: 2026-10-24'), findsNothing);
+
+    hold.complete();
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('live-status')), findsNothing);
+    expect(find.byKey(const Key('live-output')), findsNothing);
+    expect(find.textContaining('Modify: 2026-10-24'), findsOneWidget);
+    expect(find.textContaining('Hotovo, soubor existuje.'), findsOneWidget);
   });
 
   testWidgets('phone layout uses a drawer with servers and chats', (

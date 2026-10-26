@@ -40,24 +40,32 @@
 ## Průběh jednoho dotazu
 
 1. Uživatel napíše otázku; `AppState.send()` vytvoří `UserTurn` a prázdný `AgentTurn`.
-2. Naváže se (nebo znovu použije) SSH spojení k vybranému serveru. Klíč serveru se
+2. Naváže se (nebo znovu použije) SSH spojení k vybranému serveru – agent při tom
+   pošle `AgentConnecting` / `AgentConnected` (s dobou připojení). Klíč serveru se
    ověří proti uloženému otisku (TOFU – při prvním připojení se zeptá uživatele,
    při změně varuje).
 3. `Agent.run()` sestaví zprávy: systémový prompt (server, uživatel, adresář, pravidla
    read-only, jazyk odpovědi), zkrácenou historii konverzace a otázku. Přidá definice
    nástrojů (JSON schema) – jen povolené skupiny.
-4. Model streamuje odpověď. Text a „přemýšlení“ se průběžně zobrazují.
+4. `AgentStepStarted` (číslo kroku, odhad velikosti vstupu v tokenech) a model
+   streamuje odpověď. Text a „přemýšlení“ se průběžně zobrazují; `AgentAssistantMessage`
+   nese dobu kroku a statistiky z Ollamy (načtení modelu, čtení vstupu, tokeny).
 5. Pokud model zavolá funkce:
    - `ToolRegistry.prepare()` ověří název a argumenty (typy, rozsahy, výčty, zakázané
      znaky) a sestaví **skript z pevné šablony**, argumenty vždy v uvozovkách;
    - UI dostane `AgentToolCallStarted` (název, argumenty, skript, přesný příkaz,
      server, uživatel, adresář) – **uživatel vždy vidí, co se spouští**;
    - volitelně potvrzení uživatelem;
-   - `RemoteSession.run()` → SSH exec s timeoutem a limitem výstupu;
+   - `RemoteSession.run()` → SSH exec s timeoutem a limitem výstupu; stdout a stderr
+     se během běhu posílají jako `AgentToolOutput`, takže UI ukazuje výstup ze serveru
+     živě (karta funkce, počet řádků, uplynulý čas);
    - výsledek (`AgentToolCallFinished`) se zobrazí celý; modelu se pošle zkrácená verze
      (začátek + konec) s návratovým kódem a poznámkami.
 6. Model dostane výsledky a buď volá další funkce, nebo odpoví. Limit kroků (výchozí 20),
    ochrana proti opakování stejného volání.
+   UI z událostí odvozuje aktuální fázi (`AgentTurn.phase`: připojování, čekání na
+   model, přemýšlení, psaní, běh příkazu, předání výsledku) a ukazuje ji s časem –
+   uživatel tak nikdy nekouká na prázdné „Pracuji…“.
 7. Konverzace se uloží (JSON). Při další otázce se z ní zrekonstruuje historie
    pro model (staré výstupy se zkracují, aby se vešly do kontextu).
 
@@ -84,6 +92,8 @@ Každý nástroj má jen „skript“ (např. `stat -- '/etc/passwd'`). `RemoteS
 sh -c '<spouštěč: bash pokud existuje, jinak sh>' sh '<skript>'
          └─ export LC_ALL=C … (anglické, předvídatelné výstupy, žádný pager/barvy)
          └─ set -o pipefail (správné návratové kódy i při zkracování výstupu)
+         └─ AWK_LINEWISE='-W interactive', pokud je awk = mawk (Debian/Ubuntu) –
+            omezovač řádků pak pouští výstup hned, ne až po skončení příkazu
          └─ cd -- '<pracovní adresář agenta>'
 ```
 

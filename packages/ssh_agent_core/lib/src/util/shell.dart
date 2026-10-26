@@ -92,11 +92,21 @@ String _quoteKeepingGlobs(String value) {
   return out.toString();
 }
 
+/// Sets `AWK_LINEWISE` to `-W interactive` when the server's awk is mawk (the
+/// default on Debian and Ubuntu). mawk otherwise reads a pipe in large blocks
+/// and [limitLines] would hold a running command's output until it ends.
+/// Part of every command's prelude.
+const String awkLinewiseSetup =
+    'case \$(awk -W version </dev/null 2>/dev/null) in '
+    "*mawk*) AWK_LINEWISE='-W interactive' ;; esac";
+
 /// An `awk` filter that prints at most [maxLines] lines and then reports how
 /// many lines were left out. Used instead of `head` so that the model knows
-/// the output was cut.
+/// the output was cut. Lines are passed on as they come (see
+/// [awkLinewiseSetup]), so the user can follow a long-running command.
 String limitLines(int maxLines) =>
-    "awk -v m=$maxLines 'NR<=m{print} END{if(NR>m) printf "
+    "awk \${AWK_LINEWISE-} -v m=$maxLines "
+    "'NR<=m{print; fflush()} END{if(NR>m) printf "
     '"... [%d more lines not shown]\\n", NR-m}\'';
 
 /// Validates a value against [pattern] and returns it quoted.

@@ -7,13 +7,34 @@ sealed class AgentEvent {
   const AgentEvent();
 }
 
+/// Opening the SSH connection (only when it is not open yet).
+class AgentConnecting extends AgentEvent {
+  const AgentConnecting(this.server);
+
+  final String server;
+}
+
+class AgentConnected extends AgentEvent {
+  const AgentConnected(this.server, this.duration);
+
+  final String server;
+  final Duration duration;
+}
+
 /// A new model call starts. [retry] = the previous attempt of the same step
 /// failed and its partial text should be discarded.
 class AgentStepStarted extends AgentEvent {
-  const AgentStepStarted(this.step, {this.retry = false});
+  const AgentStepStarted(
+    this.step, {
+    this.retry = false,
+    this.approxPromptTokens,
+  });
 
   final int step;
   final bool retry;
+
+  /// Rough size of what the model has to read (messages + tool definitions).
+  final int? approxPromptTokens;
 }
 
 class AgentThinkingDelta extends AgentEvent {
@@ -36,12 +57,16 @@ class AgentAssistantMessage extends AgentEvent {
     required this.thinking,
     required this.toolCalls,
     this.usage,
+    this.elapsed,
   });
 
   final String content;
   final String thinking;
   final List<ToolCall> toolCalls;
   final LlmUsage? usage;
+
+  /// Wall-clock time of the model call.
+  final Duration? elapsed;
 }
 
 /// A tool is about to run on the server.
@@ -67,6 +92,15 @@ class AgentToolCallStarted extends AgentEvent {
   final String? fullCommand;
   final String? runAs;
   final String? cwd;
+}
+
+/// A piece of output of a running tool, as it arrives from the server.
+class AgentToolOutput extends AgentEvent {
+  const AgentToolOutput(this.callId, this.text, {this.isStderr = false});
+
+  final String callId;
+  final String text;
+  final bool isStderr;
 }
 
 class AgentToolCallFinished extends AgentEvent {

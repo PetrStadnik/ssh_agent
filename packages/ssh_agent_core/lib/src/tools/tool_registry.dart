@@ -96,22 +96,25 @@ class ToolRegistry {
   }
 
   /// Runs a prepared call. Never throws - errors become a [ToolResult].
+  /// [onOutput] receives the command output live while it runs.
   Future<ToolResult> execute(
     PreparedToolCall call,
     RemoteSession session, {
     int maxOutputBytes = 512 * 1024,
+    OutputListener? onOutput,
   }) async {
     final ToolResult result;
     try {
       final handler = call.tool.handler;
       if (handler != null) {
-        result = await handler(call, session);
+        result = await handler(call, session, onOutput);
       } else {
         final r = await session.run(
           call.script,
           asUser: call.runAs == session.effectiveUser ? null : call.runAs,
           timeout: call.tool.timeout,
           maxOutputBytes: maxOutputBytes,
+          onOutput: onOutput,
         );
         result = ToolResult.fromCommand(r);
       }

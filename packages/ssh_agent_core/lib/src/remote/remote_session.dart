@@ -36,7 +36,8 @@ class RemoteSession {
   static const String _prelude =
       'export LC_ALL=C LANG=C PAGER=cat SYSTEMD_PAGER= SYSTEMD_COLORS=0 '
       'NO_COLOR=1 TERM=dumb\n'
-      '(set -o pipefail) 2>/dev/null && set -o pipefail';
+      '(set -o pipefail) 2>/dev/null && set -o pipefail\n'
+      '$awkLinewiseSetup';
 
   /// The script as executed by `sh`, including the working directory.
   String scriptWithContext(String script) {
@@ -82,6 +83,7 @@ class RemoteSession {
     String? asUser,
     Duration timeout = const Duration(seconds: 30),
     int maxOutputBytes = 512 * 1024,
+    OutputListener? onOutput,
   }) {
     final user = asUser ?? runAs;
     final command = buildCommand(script, asUser: asUser);
@@ -93,6 +95,7 @@ class RemoteSession {
         maxOutputBytes: maxOutputBytes,
         pty: true,
         promptPassword: elevationPassword,
+        onOutput: onOutput,
       );
     }
     return executor.execute(
@@ -105,6 +108,7 @@ class RemoteSession {
               elevationPassword != null
           ? '$elevationPassword\n'
           : null,
+      onOutput: onOutput,
     );
   }
 }

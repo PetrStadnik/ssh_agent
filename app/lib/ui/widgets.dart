@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -249,9 +250,76 @@ class SectionLabel extends StatelessWidget {
   );
 }
 
+/// Czech noun form for a count: 1 řádek, 2–4 řádky, 0 or 5+ řádků.
+String plural(int count, String one, String few, String many) => count == 1
+    ? one
+    : count >= 2 && count <= 4
+    ? few
+    : many;
+
 String formatDuration(int milliseconds) {
   if (milliseconds < 1000) return '$milliseconds ms';
   final seconds = milliseconds / 1000;
-  if (seconds < 60) return '${seconds.toStringAsFixed(1)} s';
+  if (seconds < 60) {
+    return '${seconds.toStringAsFixed(1).replaceAll('.', ',')} s';
+  }
   return '${(seconds / 60).floor()} min ${(seconds % 60).round()} s';
+}
+
+/// Rebuilds [builder] every second (for live elapsed times).
+class SecondsTicker extends StatefulWidget {
+  const SecondsTicker({super.key, required this.builder});
+
+  final WidgetBuilder builder;
+
+  @override
+  State<SecondsTicker> createState() => _SecondsTickerState();
+}
+
+class _SecondsTickerState extends State<SecondsTicker> {
+  late final Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context);
+}
+
+/// 7412 -> "7 412".
+String formatCount(int value) {
+  final digits = value.toString();
+  final out = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) out.write('\u00A0');
+    out.write(digits[i]);
+  }
+  return out.toString();
+}
+
+/// Whole seconds since [since], e.g. "12 s" or "2 min 5 s".
+String elapsedSince(DateTime since) {
+  final seconds = DateTime.now().difference(since).inSeconds.clamp(0, 1 << 30);
+  if (seconds < 60) return '$seconds s';
+  return '${seconds ~/ 60} min ${seconds % 60} s';
+}
+
+/// 1536 -> "1,5 kB".
+String formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) {
+    return '${(bytes / 1024).toStringAsFixed(1).replaceAll('.', ',')} kB';
+  }
+  return '${(bytes / 1024 / 1024).toStringAsFixed(1).replaceAll('.', ',')} MB';
 }

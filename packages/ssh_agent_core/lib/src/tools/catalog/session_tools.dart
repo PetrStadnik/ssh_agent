@@ -25,8 +25,12 @@ final List<ToolDefinition> sessionTools = [
       ),
     ],
     script: (a) => 'cd -- ${a.path('path', allowGlob: false)} && pwd',
-    handler: (call, session) async {
-      final r = await session.run(call.script, timeout: call.tool.timeout);
+    handler: (call, session, onOutput) async {
+      final r = await session.run(
+        call.script,
+        timeout: call.tool.timeout,
+        onOutput: onOutput,
+      );
       final result = ToolResult.fromCommand(r);
       final lines = r.stdout.trim().split('\n');
       final dir = lines.isEmpty ? '' : lines.last.trim();
@@ -75,7 +79,7 @@ final List<ToolDefinition> sessionTools = [
       final user = a.str('user').trim();
       return user == '-' ? session.loginUser : user;
     },
-    handler: (call, session) async {
+    handler: (call, session, onOutput) async {
       final raw = call.args.str('user').trim();
       final target = raw == '-' ? session.loginUser : raw;
       if (target == session.loginUser) {
@@ -90,6 +94,7 @@ final List<ToolDefinition> sessionTools = [
         call.script,
         asUser: target,
         timeout: call.tool.timeout,
+        onOutput: onOutput,
       );
       final result = ToolResult.fromCommand(r);
       if (r.success) {

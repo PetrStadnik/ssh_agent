@@ -16,11 +16,13 @@ class FakeExecutor implements RemoteExecutor {
   @override
   String get host => 'example.org';
 
-  @override
-  bool get isConnected => true;
+  bool connected = true;
 
   @override
-  Future<void> connect() async {}
+  bool get isConnected => connected;
+
+  @override
+  Future<void> connect() async => connected = true;
 
   @override
   Future<void> close() async {}
@@ -33,15 +35,24 @@ class FakeExecutor implements RemoteExecutor {
     String? stdinData,
     bool pty = false,
     String? promptPassword,
+    OutputListener? onOutput,
   }) async {
     commands.add(command);
-    return respond?.call(command) ??
+    final result =
+        respond?.call(command) ??
         const CommandResult(
           stdout: 'fake output\n',
           stderr: '',
           exitCode: 0,
           duration: Duration(milliseconds: 5),
         );
+    // Deliver the output live in two pieces, like a real server.
+    if (onOutput != null && result.stdout.isNotEmpty) {
+      final half = result.stdout.length ~/ 2;
+      onOutput(result.stdout.substring(0, half), false);
+      onOutput(result.stdout.substring(half), false);
+    }
+    return result;
   }
 }
 
@@ -83,6 +94,11 @@ class ScriptedLlm implements LlmClient {
 
   @override
   Future<ModelInfo?> modelInfo() async => null;
+
+  int warmUps = 0;
+
+  @override
+  Future<void> warmUp() async => warmUps++;
 }
 
 LlmResponse callTool(

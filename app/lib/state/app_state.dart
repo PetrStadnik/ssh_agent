@@ -99,6 +99,13 @@ class AppState extends ChangeNotifier {
       ..addAll(await storage.loadConversations());
     loaded = true;
     notifyListeners();
+    _warmUpModel();
+  }
+
+  /// Loads the local model into memory in the background so the first
+  /// question does not wait for it (no-op for OpenAI-compatible servers).
+  void _warmUpModel() {
+    unawaited(_llmFactory(settings.llm).warmUp().catchError((Object _) {}));
   }
 
   Future<void> _saveProfiles() => storage.writeJson('profiles.json', {
@@ -269,7 +276,8 @@ class AppState extends ChangeNotifier {
       await storage.readProfileSecrets(profile.id),
       (type, fingerprint) => verifyHostKey(profile, type, fingerprint),
     );
-    await executor.connect();
+    // The agent connects itself (and reports it) when the executor is not
+    // connected yet.
     final existing = _sessions[key];
     if (existing != null && identical(existing.executor, executor)) {
       return existing;
@@ -397,10 +405,18 @@ class AppState extends ChangeNotifier {
   Future<void> updateSettings(
     void Function(AppSettings settings) change,
   ) async {
+    final before = settings.llm;
     change(settings);
     notifyListeners();
     await _saveSettings();
     await storage.writeSecret('llm.apiKey', settings.llm.apiKey);
+    final after = settings.llm;
+    if (after.provider != before.provider ||
+        after.baseUrl != before.baseUrl ||
+        after.model != before.model ||
+        after.contextLength != before.contextLength) {
+      _warmUpModel();
+    }
   }
 
   LlmClient llmClient([LlmConfig? config]) =>

@@ -12,10 +12,19 @@ odpoví. **U každého kroku vidíte, jakou funkci volá, přesný příkaz a je
 |---|---|---|
 | ![](docs/img/2_chat_dark.png) | ![](docs/img/4_phone.png) | ![](docs/img/6_server_editor.png) |
 
+Během práce agenta vidíte živě, co se děje – připojení, dotaz na model (s časem
+a velikostí vstupu), běžící příkaz a jeho výstup ze serveru řádek po řádku:
+
+![Průběžný výpis](docs/img/8_live_progress.png)
+
 ## Co umí
 
 - **Chat jako v Claude** – postranní panel s konverzacemi, streamované odpovědi
   s Markdownem, sbalitelné „přemýšlení“ modelu, světlý i tmavý motiv.
+- **Průběžný výpis** – místo pouhého „Pracuji…“ aplikace ukazuje, v jaké fázi agent
+  je (připojuje se / model čte dotaz / přemýšlí / na serveru běží `find`…) s časem,
+  u každého kroku dobu odpovědi modelu, načtení modelu a počet tokenů, a výstup
+  běžícího příkazu se streamuje do karty funkce, jak přichází ze serveru.
 - **Více SSH připojení** – servery přepnete jedním klikem v panelu nebo přímo
   v poli pro dotaz. Přihlášení klíčem (i šifrovaným) nebo heslem, ověření otisku
   klíče serveru, hesla a klíče v zabezpečeném úložišti systému.

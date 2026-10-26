@@ -232,11 +232,37 @@ class _Printer {
   bool _inText = false;
   bool _inThinking = false;
 
+  /// Live output of the running tool: partial line and printed lines.
+  String _partial = '';
+  int _liveLines = 0;
+  bool _liveShown = false;
+  static const int _maxLiveLines = 200;
+
   String _c(String code, String text) =>
       color ? '\x1B[${code}m$text\x1B[0m' : text;
 
   void event(AgentEvent e) {
     switch (e) {
+      case AgentConnecting(:final server):
+        stdout.writeln(_c('2', '↻ Připojuji se k serveru $server…'));
+      case AgentConnected(:final duration):
+        stdout.writeln(_c('2', '✓ Připojeno za ${duration.inMilliseconds} ms'));
+      case AgentStepStarted(
+        :final step,
+        :final retry,
+        :final approxPromptTokens,
+      ):
+        _endText();
+        stdout.writeln(
+          _c(
+            '2',
+            '◆ Krok ${step + 1}${retry ? ' (opakování)' : ''} – čekám na '
+                'model (~${approxPromptTokens ?? '?'} tokenů vstupu)…',
+          ),
+        );
+      case AgentAssistantMessage(:final usage, :final elapsed):
+        _endText();
+        stdout.writeln(_c('2', '  model: ${_modelStats(elapsed, usage)}'));
       case AgentThinkingDelta(:final text):
         if (!_inThinking) stdout.write(_c('2', '\n💭 '));
         _inThinking = true;
@@ -249,8 +275,20 @@ class _Printer {
       case AgentToolCallStarted():
         _endText();
         toolStarted(e.name, e.arguments, e.script, e.runAs, e.cwd, e.server);
+      case AgentToolOutput(:final text):
+        _liveShown = true;
+        _partial += text;
+        final lines = _partial.split('\n');
+        _partial = lines.removeLast();
+        for (final line in lines) {
+          _printLive(line);
+        }
       case AgentToolCallFinished(:final result):
-        toolFinished(result);
+        if (_partial.isNotEmpty) _printLive(_partial);
+        toolFinished(result, outputShown: _liveShown);
+        _partial = '';
+        _liveLines = 0;
+        _liveShown = false;
       case AgentNotice(:final message):
         _endText();
         stdout.writeln(_c('33', 'ℹ $message'));
@@ -262,9 +300,32 @@ class _Printer {
       case AgentCancelled():
         _endText();
         stdout.writeln(_c('33', '■ Zrušeno'));
-      case AgentStepStarted() || AgentAssistantMessage():
-        break;
     }
+  }
+
+  void _printLive(String line) {
+    _liveLines++;
+    if (_liveLines <= _maxLiveLines) {
+      stdout.writeln(_c('2', '  │ $line'));
+    } else if (_liveLines == _maxLiveLines + 1) {
+      stdout.writeln(_c('2', '  │ … (další výstup se nevypisuje)'));
+    }
+  }
+
+  static String _modelStats(Duration? elapsed, LlmUsage? usage) {
+    String seconds(Duration? d) =>
+        d == null ? '?' : '${(d.inMilliseconds / 1000).toStringAsFixed(1)} s';
+    return [
+      seconds(elapsed),
+      if (usage?.loadDuration != null &&
+          usage!.loadDuration!.inMilliseconds > 500)
+        'načtení modelu ${seconds(usage.loadDuration)}',
+      if (usage?.promptTokens != null)
+        'vstup ${usage!.promptTokens} tok.'
+            '${usage.promptDuration == null ? '' : ' za ${seconds(usage.promptDuration)}'}',
+      if (usage?.completionTokens != null)
+        'výstup ${usage!.completionTokens} tok.',
+    ].join(' · ');
   }
 
   void _endText() {
@@ -295,7 +356,11 @@ class _Printer {
     }
   }
 
-  void toolFinished(ToolResult r, {bool full = false}) {
+  void toolFinished(
+    ToolResult r, {
+    bool full = false,
+    bool outputShown = false,
+  }) {
     final status = r.error != null
         ? _c('31', '✖ ${r.error}')
         : _c(
@@ -304,6 +369,7 @@ class _Printer {
           );
     stdout.writeln('  $status');
     if (r.note != null) stdout.writeln(_c('33', '  ℹ ${r.note}'));
+    if (outputShown) return;
     final lines = '${r.stdout}${r.stderr.isEmpty ? '' : '\n${r.stderr}'}'
         .trimRight()
         .split('\n');

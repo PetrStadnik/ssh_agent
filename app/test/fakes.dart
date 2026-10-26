@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ssh_agent/state/app_state.dart';
 import 'package:ssh_agent/state/storage.dart';
 import 'package:ssh_agent_core/ssh_agent_core.dart';
@@ -8,6 +10,10 @@ class FakeExecutor implements RemoteExecutor {
   final ConnectionProfile profile;
   final List<String> commands = [];
   bool connected = false;
+
+  /// When set, `execute` streams the first part of the output and waits for
+  /// this completer before finishing (lets tests look at a running tool).
+  Completer<void>? hold;
 
   @override
   String get label => profile.label;
@@ -35,15 +41,22 @@ class FakeExecutor implements RemoteExecutor {
     String? stdinData,
     bool pty = false,
     String? promptPassword,
+    OutputListener? onOutput,
   }) async {
     commands.add(command);
+    const stdout =
+        '  File: /etc/passwd\n'
+        '  Size: 3465      \tBlocks: 8          IO Block: 4096   regular file\n'
+        'Access: (0644/-rw-r--r--)  Uid: (    0/    root)   Gid: (    0/    root)\n'
+        'Modify: 2026-10-24 22:13:05.565238411 +0200\n'
+        'Change: 2026-10-24 22:13:05.565238411 +0200\n';
+    final split = stdout.indexOf('Access:');
+    onOutput?.call(stdout.substring(0, split), false);
+    final wait = hold;
+    if (wait != null) await wait.future;
+    onOutput?.call(stdout.substring(split), false);
     return const CommandResult(
-      stdout:
-          '  File: /etc/passwd\n'
-          '  Size: 3465      \tBlocks: 8          IO Block: 4096   regular file\n'
-          'Access: (0644/-rw-r--r--)  Uid: (    0/    root)   Gid: (    0/    root)\n'
-          'Modify: 2026-10-24 22:13:05.565238411 +0200\n'
-          'Change: 2026-10-24 22:13:05.565238411 +0200\n',
+      stdout: stdout,
       stderr: '',
       exitCode: 0,
       duration: Duration(milliseconds: 38),
@@ -73,6 +86,11 @@ class ScriptedLlm implements LlmClient {
     return r;
   }
 
+  int warmUps = 0;
+
+  @override
+  Future<void> warmUp() async => warmUps++;
+
   @override
   Future<List<String>> listModels() async => ['qwen3.5:9b'];
 
@@ -99,6 +117,8 @@ Future<AppState> createState({
   List<Conversation> conversations = const [],
   List<LlmResponse>? responses,
   List<FakeExecutor>? executors,
+  List<ScriptedLlm>? llms,
+  Completer<void>? hold,
 }) async {
   final storage = MemoryAppStorage();
   storage.files['profiles.json'] = {
@@ -111,11 +131,15 @@ Future<AppState> createState({
   final state = AppState(
     storage,
     executorFactory: (profile, secrets, verify) {
-      final executor = FakeExecutor(profile);
+      final executor = FakeExecutor(profile)..hold = hold;
       executors?.add(executor);
       return executor;
     },
-    llmFactory: (_) => ScriptedLlm(responses ?? []),
+    llmFactory: (_) {
+      final llm = ScriptedLlm(responses ?? []);
+      llms?.add(llm);
+      return llm;
+    },
   );
   await state.load();
   return state;

@@ -87,6 +87,10 @@ abstract class LlmClient {
 
   /// Capabilities of the configured model (null if the server cannot tell).
   Future<ModelInfo?> modelInfo();
+
+  /// Loads the model into memory in advance so that the first question does
+  /// not wait for it. Errors are ignored; a no-op where unsupported.
+  Future<void> warmUp();
 }
 
 LlmClient createLlmClient(LlmConfig config) => switch (config.provider) {

@@ -197,6 +197,91 @@ void main() {
     expect(events.single, isA<AgentCancelled>());
   });
 
+  test('reports connecting, step timing and live tool output', () async {
+    executor.connected = false;
+    final llm = ScriptedLlm([
+      callTool('stat', {'path': '/etc/passwd'}),
+      const LlmResponse(
+        content: 'Hotovo.',
+        usage: LlmUsage(
+          promptTokens: 900,
+          completionTokens: 20,
+          loadDuration: Duration(seconds: 4),
+          promptDuration: Duration(seconds: 2),
+        ),
+      ),
+    ]);
+    final turn = AgentTurn();
+    final phases = <AgentPhase>[];
+    final events = <AgentEvent>[];
+    await for (final e in agent(
+      llm,
+    ).run(history: const [], userMessage: 'Kdy?')) {
+      events.add(e);
+      turn.apply(e);
+      phases.add(turn.phase);
+    }
+
+    expect(events.first, isA<AgentConnecting>());
+    expect(events[1], isA<AgentConnected>());
+    expect(turn.connectMs, isNotNull);
+
+    final step = events.whereType<AgentStepStarted>().first;
+    expect(step.approxPromptTokens, greaterThan(1000));
+
+    // Output arrives before the tool finishes.
+    final outputIndex = events.indexWhere((e) => e is AgentToolOutput);
+    final finishedIndex = events.indexWhere((e) => e is AgentToolCallFinished);
+    expect(outputIndex, greaterThan(0));
+    expect(outputIndex, lessThan(finishedIndex));
+    expect(
+      events.whereType<AgentToolOutput>().map((e) => e.text).join(),
+      contains('Modify: 2026-10-01'),
+    );
+    expect(turn.toolCalls.single.liveStdout, contains('Modify'));
+    expect(turn.toolCalls.single.liveLines, 2);
+
+    expect(
+      phases,
+      containsAllInOrder([
+        AgentPhase.connecting,
+        AgentPhase.waitingForModel,
+        AgentPhase.runningTool,
+        AgentPhase.processing,
+        AgentPhase.waitingForModel,
+        AgentPhase.idle,
+      ]),
+    );
+
+    expect(turn.steps.first.modelMs, isNotNull);
+    expect(turn.steps.last.loadMs, 4000);
+    expect(turn.steps.last.promptEvalMs, 2000);
+    expect(turn.steps.last.promptTokens, 900);
+
+    // Timing survives saving.
+    final restored = AgentTurn.fromJson(
+      jsonDecode(jsonEncode(turn.toJson())) as Map<String, Object?>,
+    );
+    expect(restored.steps.last.loadMs, 4000);
+    expect(restored.connectMs, turn.connectMs);
+    expect(restored.phase, AgentPhase.idle);
+  });
+
+  test('a failing SSH connection ends the run with a clear error', () async {
+    final failing = _FailingExecutor();
+    final events = await Agent(
+      llm: ScriptedLlm([]),
+      tools: ToolRegistry(),
+      session: RemoteSession(executor: failing),
+      serverName: 'web-1',
+    ).run(history: const [], userMessage: 'x').toList();
+    expect(events.first, isA<AgentConnecting>());
+    expect(
+      (events.last as AgentFailed).message,
+      'SSH: Nelze se připojit k example.org:22',
+    );
+  });
+
   group('Conversation', () {
     test('records events and rebuilds a valid history', () async {
       final llm = ScriptedLlm([
@@ -304,4 +389,14 @@ void main() {
       expect(turn.toolCalls.single.status, ToolStatus.failed);
     });
   });
+}
+
+class _FailingExecutor extends FakeExecutor {
+  _FailingExecutor() {
+    connected = false;
+  }
+
+  @override
+  Future<void> connect() async =>
+      throw RemoteConnectionException('Nelze se připojit k example.org:22');
 }

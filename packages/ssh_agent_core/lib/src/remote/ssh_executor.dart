@@ -173,6 +173,7 @@ class SshExecutor implements RemoteExecutor {
     String? stdinData,
     bool pty = false,
     String? promptPassword,
+    OutputListener? onOutput,
   }) async {
     final stopwatch = Stopwatch()..start();
     SSHSession session;
@@ -212,10 +213,20 @@ class SshExecutor implements RemoteExecutor {
       if (stdout.full && stderr.full) abort();
     }
 
+    // Live output: decoded incrementally (multi-byte characters may be split
+    // between packets) and only up to the output limit.
+    final liveOut = onOutput == null
+        ? null
+        : _LiveDecoder((text) => onOutput(_liveText(text), false));
+    final liveErr = onOutput == null
+        ? null
+        : _LiveDecoder((text) => onOutput(_liveText(text), true));
+
     final outDone = Completer<void>();
     final errDone = Completer<void>();
     session.stdout.listen(
       (data) {
+        if (!stdout.full) liveOut?.add(data);
         stdout.add(data);
         if (pty &&
             !passwordSent &&
@@ -242,6 +253,7 @@ class SshExecutor implements RemoteExecutor {
     );
     session.stderr.listen(
       (data) {
+        if (!stderr.full) liveErr?.add(data);
         stderr.add(data);
         stopIfFull();
       },
@@ -275,6 +287,8 @@ class SshExecutor implements RemoteExecutor {
       // Channel closed with an error - whatever was collected is returned.
     } finally {
       timer.cancel();
+      liveOut?.close();
+      liveErr?.close();
     }
     final exitCode = await session.waitForExit(
       timeout: const Duration(milliseconds: 500),
@@ -295,6 +309,8 @@ class SshExecutor implements RemoteExecutor {
       truncated: stdout.truncated || stderr.truncated,
     );
   }
+
+  static String _liveText(String text) => stripAnsi(text).replaceAll('\r', '');
 
   Future<SSHSession> _openSession(String command, bool pty) async {
     final client = await _ensureClient();
@@ -382,4 +398,32 @@ class _LimitedBuffer {
   }
 
   String get text => utf8.decode(_bytes.toBytes(), allowMalformed: true);
+}
+
+/// Incremental UTF-8 decoder feeding a callback.
+class _LiveDecoder {
+  _LiveDecoder(void Function(String text) onText)
+    : _sink = const Utf8Decoder(
+        allowMalformed: true,
+      ).startChunkedConversion(_CallbackSink(onText));
+
+  final ByteConversionSink _sink;
+
+  void add(Uint8List data) => _sink.add(data);
+
+  void close() => _sink.close();
+}
+
+class _CallbackSink implements Sink<String> {
+  _CallbackSink(this.onText);
+
+  final void Function(String text) onText;
+
+  @override
+  void add(String data) {
+    if (data.isNotEmpty) onText(data);
+  }
+
+  @override
+  void close() {}
 }

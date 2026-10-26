@@ -83,7 +83,11 @@ typedef ScriptBuilder = String Function(ToolArgs args);
 
 /// Custom execution (e.g. `cd` updates the session after the command).
 typedef ToolHandler =
-    Future<ToolResult> Function(PreparedToolCall call, RemoteSession session);
+    Future<ToolResult> Function(
+      PreparedToolCall call,
+      RemoteSession session,
+      OutputListener? onOutput,
+    );
 
 /// A predefined, read-only action the agent can call.
 class ToolDefinition {

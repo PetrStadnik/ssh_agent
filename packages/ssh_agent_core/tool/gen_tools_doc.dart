@@ -118,5 +118,6 @@ class _DocExecutor implements RemoteExecutor {
     String? stdinData,
     bool pty = false,
     String? promptPassword,
+    OutputListener? onOutput,
   }) => throw UnimplementedError();
 }

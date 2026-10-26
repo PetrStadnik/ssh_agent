@@ -56,9 +56,29 @@ class AgentTurnView extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     final children = <Widget>[];
+    if (turn.connectMs != null) {
+      children.add(
+        _ProgressRow(
+          icon: Icons.link_rounded,
+          text:
+              'Připojeno k serveru ${turn.server ?? ''} za '
+              '${formatDuration(turn.connectMs!)}',
+        ),
+      );
+    }
     for (var i = 0; i < turn.steps.length; i++) {
       final step = turn.steps[i];
       final isLast = i == turn.steps.length - 1;
+      if (step.startedAt != null || step.modelMs != null) {
+        children.add(
+          _StepRow(
+            step: step,
+            number: i + 1,
+            model: turn.model,
+            running: turn.isRunning && isLast && step.modelMs == null,
+          ),
+        );
+      }
       if (step.thinking.trim().isNotEmpty) {
         children.add(
           ThinkingBlock(
@@ -102,7 +122,7 @@ class AgentTurnView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ...children,
-          if (turn.isRunning) const _WorkingIndicator(),
+          if (turn.isRunning) LiveStatus(turn: turn),
           if (!turn.isRunning) _ActionRow(turn: turn),
         ],
       ),
@@ -110,23 +130,169 @@ class AgentTurnView extends StatelessWidget {
   }
 }
 
-class _WorkingIndicator extends StatelessWidget {
-  const _WorkingIndicator();
+/// What the agent is doing right now, with live elapsed time - so that a
+/// slow model or a long command is never a silent "working...".
+class LiveStatus extends StatelessWidget {
+  const LiveStatus({super.key, required this.turn});
+
+  final AgentTurn turn;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 10),
-    child: Row(
-      children: [
-        const SparkIcon(size: 22, animate: true),
-        const SizedBox(width: 10),
-        Text(
-          'Pracuji…',
-          style: TextStyle(fontSize: 13.5, color: context.colors.textTertiary),
+  Widget build(BuildContext context) => SecondsTicker(
+    builder: (context) {
+      final c = context.colors;
+      final step = turn.steps.isEmpty ? null : turn.steps.last;
+      final running = turn.toolCalls
+          .where((t) => t.status == ToolStatus.running)
+          .lastOrNull;
+      final phaseTime = elapsedSince(turn.phaseSince);
+      final waited = DateTime.now().difference(turn.phaseSince).inSeconds;
+      final text = switch (turn.phase) {
+        AgentPhase.connecting =>
+          'Připojuji se k serveru ${turn.phaseDetail ?? ''}…',
+        AgentPhase.waitingForModel =>
+          'Model ${turn.model ?? ''} zpracovává dotaz'
+              '${step == null ? '' : ' (krok ${turn.steps.length})'}…',
+        AgentPhase.thinking => 'Model přemýšlí…',
+        AgentPhase.writing => 'Model píše odpověď…',
+        AgentPhase.runningTool =>
+          'Na serveru běží ${running?.name ?? turn.phaseDetail ?? 'příkaz'}'
+              '${running == null || running.liveLines == 0 ? '' : ' · ${formatCount(running.liveLines)} ${plural(running.liveLines, 'řádek', 'řádky', 'řádků')} výstupu'}…',
+        AgentPhase.processing => 'Předávám výsledek modelu…',
+        AgentPhase.idle => 'Dokončuji…',
+      };
+      String? hint;
+      if (turn.phase == AgentPhase.waitingForModel && waited >= 8) {
+        final tokens = step?.approxPromptTokens;
+        final size = tokens == null ? '' : ' (~${formatCount(tokens)} tokenů)';
+        hint = turn.steps.length <= 1
+            ? 'První dotaz bývá nejpomalejší: model se načítá do paměti a čte '
+                  'zadání včetně definic nástrojů$size. Bez grafické karty to '
+                  'může trvat i několik minut.'
+            : 'Model čte celou dosavadní konverzaci a výstupy příkazů$size.';
+      } else if (turn.phase == AgentPhase.connecting && waited >= 10) {
+        hint =
+            'Server neodpovídá – zkontrolujte adresu, port a síť. Spojení '
+            'vyprší za 15–20 s.';
+      }
+      return Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const SparkIcon(size: 22, animate: true),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    '$text  $phaseTime',
+                    key: const Key('live-status'),
+                    style: TextStyle(fontSize: 13.5, color: c.textSecondary),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'celkem ${elapsedSince(turn.at)}',
+                  style: TextStyle(fontSize: 12, color: c.textTertiary),
+                ),
+              ],
+            ),
+            if (hint != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 32, top: 4),
+                child: Text(
+                  hint,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.4,
+                    color: c.textTertiary,
+                  ),
+                ),
+              ),
+          ],
         ),
-      ],
-    ),
+      );
+    },
   );
+}
+
+/// Small grey line in the flow of the answer (connection, model steps).
+class _ProgressRow extends StatelessWidget {
+  const _ProgressRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, size: 14, color: c.textTertiary),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 12.5, color: c.textTertiary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One model call: how long it took and how much it read and wrote.
+class _StepRow extends StatelessWidget {
+  const _StepRow({
+    required this.step,
+    required this.number,
+    required this.model,
+    required this.running,
+  });
+
+  final AgentStepRecord step;
+  final int number;
+  final String? model;
+  final bool running;
+
+  @override
+  Widget build(BuildContext context) {
+    final retry = step.retries > 0 ? ' (opakování ${step.retries}×)' : '';
+    if (running) {
+      final tokens = step.approxPromptTokens;
+      return SecondsTicker(
+        builder: (context) => _ProgressRow(
+          icon: Icons.memory_rounded,
+          text:
+              'Krok $number$retry · dotaz na model ${model ?? ''}'
+              '${tokens == null ? '' : ' · vstup ~${formatCount(tokens)} tokenů'}'
+              ' · ${step.startedAt == null ? '' : elapsedSince(step.startedAt!)}',
+        ),
+      );
+    }
+    final parts = <String>[
+      'Krok $number$retry',
+      if (step.modelMs != null) 'model ${formatDuration(step.modelMs!)}',
+      if ((step.loadMs ?? 0) > 500)
+        'načtení modelu ${formatDuration(step.loadMs!)}',
+      if (step.promptTokens != null)
+        'vstup ${formatCount(step.promptTokens!)} tok.'
+            '${step.promptEvalMs == null ? '' : ' (${formatDuration(step.promptEvalMs!)})'}',
+      if (step.completionTokens != null)
+        'výstup ${formatCount(step.completionTokens!)} tok.',
+      if (step.tools.isNotEmpty)
+        'volá: ${step.tools.map((t) => t.name).join(', ')}',
+    ];
+    return _ProgressRow(icon: Icons.memory_rounded, text: parts.join(' · '));
+  }
 }
 
 class _ActionRow extends StatelessWidget {
@@ -140,14 +306,9 @@ class _ActionRow extends StatelessWidget {
     final tools = turn.toolCalls.length;
     final details = [
       if (turn.model != null) turn.model!,
-      if (tools > 0)
-        '$tools ${tools == 1
-            ? 'příkaz'
-            : tools < 5
-            ? 'příkazy'
-            : 'příkazů'}',
+      if (tools > 0) '$tools ${plural(tools, 'příkaz', 'příkazy', 'příkazů')}',
       if (turn.completionTokens > 0)
-        '${turn.promptTokens + turn.completionTokens} tokenů',
+        '${formatCount(turn.promptTokens + turn.completionTokens)} tokenů',
     ].join(' · ');
     return Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -224,6 +385,12 @@ class ThinkingBlock extends StatefulWidget {
 class _ThinkingBlockState extends State<ThinkingBlock> {
   bool _open = false;
 
+  static String _tail(String text, int lines) {
+    final all = text.split('\n');
+    if (all.length <= lines) return text;
+    return '…\n${all.sublist(all.length - lines).join('\n')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
@@ -261,7 +428,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
               ),
             ),
           ),
-          if (_open)
+          if (_open || widget.active)
             Container(
               margin: const EdgeInsets.only(top: 4, left: 8),
               padding: const EdgeInsets.only(left: 12),
@@ -269,7 +436,8 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
                 border: Border(left: BorderSide(color: c.border, width: 2)),
               ),
               child: SelectableText(
-                widget.text.trim(),
+                // While the model is thinking, show the latest lines live.
+                _open ? widget.text.trim() : _tail(widget.text.trim(), 6),
                 style: TextStyle(
                   fontSize: 13.5,
                   height: 1.5,

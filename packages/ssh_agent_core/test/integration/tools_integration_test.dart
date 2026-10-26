@@ -115,6 +115,23 @@ void main() {
         : false,
   );
 
+  test('output is delivered live while the command runs', () async {
+    final chunks = <(Duration, String)>[];
+    final stopwatch = Stopwatch()..start();
+    final result = await executor.execute(
+      'for i in 1 2 3; do echo "line \$i"; sleep 0.4; done',
+      onOutput: (text, isStderr) => chunks.add((stopwatch.elapsed, text)),
+    );
+    expect(result.stdout, 'line 1\nline 2\nline 3\n');
+    expect(chunks.map((c) => c.$2).join(), result.stdout);
+    expect(chunks.length, greaterThanOrEqualTo(3));
+    // The first line arrived long before the command finished.
+    expect(
+      chunks.first.$1,
+      lessThan(result.duration - const Duration(milliseconds: 500)),
+    );
+  }, skip: host == null ? 'SSH_TEST_HOST not set' : false);
+
   test('shell injection attempts are never executed', () async {
     final marker =
         '/tmp/ssh_agent_pwned_${DateTime.now().microsecondsSinceEpoch}';

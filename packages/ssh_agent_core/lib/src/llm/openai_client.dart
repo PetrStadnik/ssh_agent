@@ -191,6 +191,9 @@ class OpenAiCompatibleClient implements LlmClient {
 
   @override
   Future<ModelInfo?> modelInfo() async => null;
+
+  @override
+  Future<void> warmUp() async {}
 }
 
 class _PartialCall {

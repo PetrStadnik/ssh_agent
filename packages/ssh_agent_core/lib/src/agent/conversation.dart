@@ -124,6 +124,31 @@ class UserTurn extends ChatTurn {
 
 enum AgentTurnStatus { running, done, error, cancelled }
 
+/// What the agent is doing right now (shown live, not saved).
+enum AgentPhase {
+  /// Opening the SSH connection.
+  connecting,
+
+  /// Request sent, the model has not produced anything yet (loading the
+  /// model, reading the prompt).
+  waitingForModel,
+
+  /// The model streams its reasoning.
+  thinking,
+
+  /// The model streams the answer text.
+  writing,
+
+  /// A command runs on the server.
+  runningTool,
+
+  /// A tool finished, its result goes back to the model.
+  processing,
+
+  /// Nothing (finished).
+  idle,
+}
+
 /// The agent's answer to one user message: possibly several steps, each
 /// with reasoning, text and tool calls.
 class AgentTurn extends ChatTurn {
@@ -137,6 +162,7 @@ class AgentTurn extends ChatTurn {
     List<String>? notices,
     this.promptTokens = 0,
     this.completionTokens = 0,
+    this.connectMs,
   }) : steps = steps ?? [],
        notices = notices ?? [];
 
@@ -149,7 +175,24 @@ class AgentTurn extends ChatTurn {
   int promptTokens;
   int completionTokens;
 
+  /// How long opening the SSH connection took (null = already connected).
+  int? connectMs;
+
+  /// Live state for the UI (not saved).
+  AgentPhase phase = AgentPhase.waitingForModel;
+  DateTime phaseSince = DateTime.now();
+
+  /// E.g. the server name or the running tool.
+  String? phaseDetail;
+
   bool get isRunning => status == AgentTurnStatus.running;
+
+  void _setPhase(AgentPhase value, [String? detail]) {
+    if (value == phase && detail == phaseDetail) return;
+    phase = value;
+    phaseDetail = detail;
+    phaseSince = DateTime.now();
+  }
 
   Iterable<ToolInvocation> get toolCalls => steps.expand((s) => s.tools);
 
@@ -169,28 +212,53 @@ class AgentTurn extends ChatTurn {
   /// Updates the record with an event coming from [Agent.run].
   void apply(AgentEvent event) {
     switch (event) {
-      case AgentStepStarted(:final retry):
+      case AgentConnecting(:final server):
+        _setPhase(AgentPhase.connecting, server);
+      case AgentConnected(:final duration):
+        connectMs = duration.inMilliseconds;
+        _setPhase(AgentPhase.waitingForModel);
+      case AgentStepStarted(:final retry, :final approxPromptTokens):
         if (retry && steps.isNotEmpty && steps.last.tools.isEmpty) {
           steps.last
             ..text = ''
-            ..thinking = '';
+            ..thinking = ''
+            ..retries += 1;
         } else if (steps.isEmpty ||
             steps.last.tools.isNotEmpty ||
             steps.last.text.isNotEmpty ||
             steps.last.thinking.isNotEmpty) {
           steps.add(AgentStepRecord());
         }
+        steps.last
+          ..startedAt = DateTime.now()
+          ..approxPromptTokens = approxPromptTokens;
+        _setPhase(AgentPhase.waitingForModel, '${steps.length}');
       case AgentThinkingDelta(:final text):
         _current.thinking += text;
+        _setPhase(AgentPhase.thinking);
       case AgentTextDelta(:final text):
         _current.text += text;
-      case AgentAssistantMessage(:final content, :final thinking, :final usage):
+        _setPhase(AgentPhase.writing);
+      case AgentAssistantMessage(
+        :final content,
+        :final thinking,
+        :final usage,
+        :final elapsed,
+        :final toolCalls,
+      ):
         _current
           ..text = content
-          ..thinking = thinking;
+          ..thinking = thinking
+          ..modelMs = elapsed?.inMilliseconds
+          ..promptTokens = usage?.promptTokens
+          ..completionTokens = usage?.completionTokens
+          ..loadMs = usage?.loadDuration?.inMilliseconds
+          ..promptEvalMs = usage?.promptDuration?.inMilliseconds;
         promptTokens += usage?.promptTokens ?? 0;
         completionTokens += usage?.completionTokens ?? 0;
+        if (toolCalls.isNotEmpty) _setPhase(AgentPhase.processing);
       case AgentToolCallStarted():
+        _setPhase(AgentPhase.runningTool, event.name);
         _current.tools.add(
           ToolInvocation(
             id: event.callId,
@@ -201,8 +269,13 @@ class AgentTurn extends ChatTurn {
             fullCommand: event.fullCommand,
             runAs: event.runAs,
             cwd: event.cwd,
-          ),
+          )..startedAt = DateTime.now(),
         );
+      case AgentToolOutput(:final callId, :final text, :final isStderr):
+        toolCalls
+            .where((t) => t.id == callId)
+            .lastOrNull
+            ?.addLiveOutput(text, isStderr: isStderr);
       case AgentToolCallFinished(
         :final callId,
         :final result,
@@ -221,17 +294,21 @@ class AgentTurn extends ChatTurn {
           ..error = result.error
           ..note = result.note
           ..modelText = modelText;
+        _setPhase(AgentPhase.processing);
       case AgentNotice(:final message):
         notices.add(message);
       case AgentCompleted():
         status = AgentTurnStatus.done;
+        _setPhase(AgentPhase.idle);
       case AgentFailed(:final message):
         status = AgentTurnStatus.error;
         error = message;
         _finishRunningTools();
+        _setPhase(AgentPhase.idle);
       case AgentCancelled():
         status = AgentTurnStatus.cancelled;
         _finishRunningTools();
+        _setPhase(AgentPhase.idle);
     }
   }
 
@@ -294,6 +371,7 @@ class AgentTurn extends ChatTurn {
     'notices': notices,
     'promptTokens': promptTokens,
     'completionTokens': completionTokens,
+    'connectMs': connectMs,
     'steps': [for (final s in steps) s.toJson()],
   };
 
@@ -317,42 +395,85 @@ class AgentTurn extends ChatTurn {
       ],
       promptTokens: (json['promptTokens'] as num?)?.toInt() ?? 0,
       completionTokens: (json['completionTokens'] as num?)?.toInt() ?? 0,
+      connectMs: (json['connectMs'] as num?)?.toInt(),
       steps: [
         for (final s in (json['steps'] as List?) ?? const [])
           if (s is Map) AgentStepRecord.fromJson(Map<String, Object?>.from(s)),
       ],
     );
     if (interrupted) turn._finishRunningTools();
+    turn.phase = AgentPhase.idle;
     return turn;
   }
 }
 
+/// One model call and the tools it requested.
 class AgentStepRecord {
   AgentStepRecord({
     this.thinking = '',
     this.text = '',
     List<ToolInvocation>? tools,
+    this.startedAt,
+    this.modelMs,
+    this.approxPromptTokens,
+    this.promptTokens,
+    this.completionTokens,
+    this.loadMs,
+    this.promptEvalMs,
+    this.retries = 0,
   }) : tools = tools ?? [];
 
   String thinking;
   String text;
   final List<ToolInvocation> tools;
 
+  /// When the request was sent to the model.
+  DateTime? startedAt;
+
+  /// How long the model call took (null while it runs).
+  int? modelMs;
+  int? approxPromptTokens;
+  int? promptTokens;
+  int? completionTokens;
+
+  /// Loading the model into memory / reading the prompt (Ollama).
+  int? loadMs;
+  int? promptEvalMs;
+  int retries;
+
   Map<String, Object?> toJson() => {
     'thinking': thinking,
     'text': text,
     'tools': [for (final t in tools) t.toJson()],
+    'startedAt': startedAt?.toIso8601String(),
+    'modelMs': modelMs,
+    'approxPromptTokens': approxPromptTokens,
+    'promptTokens': promptTokens,
+    'completionTokens': completionTokens,
+    'loadMs': loadMs,
+    'promptEvalMs': promptEvalMs,
+    'retries': retries,
   };
 
-  factory AgentStepRecord.fromJson(Map<String, Object?> json) =>
-      AgentStepRecord(
-        thinking: json['thinking'] as String? ?? '',
-        text: json['text'] as String? ?? '',
-        tools: [
-          for (final t in (json['tools'] as List?) ?? const [])
-            if (t is Map) ToolInvocation.fromJson(Map<String, Object?>.from(t)),
-        ],
-      );
+  factory AgentStepRecord.fromJson(Map<String, Object?> json) {
+    int? number(String key) => (json[key] as num?)?.toInt();
+    return AgentStepRecord(
+      thinking: json['thinking'] as String? ?? '',
+      text: json['text'] as String? ?? '',
+      tools: [
+        for (final t in (json['tools'] as List?) ?? const [])
+          if (t is Map) ToolInvocation.fromJson(Map<String, Object?>.from(t)),
+      ],
+      startedAt: DateTime.tryParse(json['startedAt'] as String? ?? ''),
+      modelMs: number('modelMs'),
+      approxPromptTokens: number('approxPromptTokens'),
+      promptTokens: number('promptTokens'),
+      completionTokens: number('completionTokens'),
+      loadMs: number('loadMs'),
+      promptEvalMs: number('promptEvalMs'),
+      retries: number('retries') ?? 0,
+    );
+  }
 }
 
 enum ToolStatus { running, done, failed }
@@ -398,6 +519,34 @@ class ToolInvocation {
   String? error;
   String? note;
   String? modelText;
+
+  /// Live state while the command runs (not saved).
+  DateTime? startedAt;
+
+  /// The end of the output received so far (at most [liveTailChars]).
+  String liveStdout = '';
+  String liveStderr = '';
+  int liveBytes = 0;
+  int liveLines = 0;
+
+  static const int liveTailChars = 16000;
+
+  void addLiveOutput(String text, {bool isStderr = false}) {
+    liveBytes += text.length;
+    liveLines += '\n'.allMatches(text).length;
+    String append(String current) {
+      final joined = current + text;
+      return joined.length <= liveTailChars
+          ? joined
+          : joined.substring(joined.length - liveTailChars);
+    }
+
+    if (isStderr) {
+      liveStderr = append(liveStderr);
+    } else {
+      liveStdout = append(liveStdout);
+    }
+  }
 
   Map<String, Object?> toJson() => {
     'id': id,

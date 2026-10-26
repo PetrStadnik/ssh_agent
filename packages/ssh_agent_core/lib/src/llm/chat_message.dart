@@ -95,11 +95,25 @@ class ChatMessage {
 
 /// Token statistics reported by the server.
 class LlmUsage {
-  const LlmUsage({this.promptTokens, this.completionTokens, this.duration});
+  const LlmUsage({
+    this.promptTokens,
+    this.completionTokens,
+    this.duration,
+    this.loadDuration,
+    this.promptDuration,
+  });
 
   final int? promptTokens;
   final int? completionTokens;
+
+  /// Time spent generating the answer.
   final Duration? duration;
+
+  /// Time spent loading the model into memory (first request, Ollama).
+  final Duration? loadDuration;
+
+  /// Time spent reading the prompt (Ollama `prompt_eval_duration`).
+  final Duration? promptDuration;
 
   /// Generation speed when the server reports it.
   double? get tokensPerSecond {

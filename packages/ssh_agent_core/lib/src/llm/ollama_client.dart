@@ -148,13 +148,14 @@ class OllamaClient implements LlmClient {
       }
       if (json['done'] == true) {
         finishReason = json['done_reason'] as String?;
-        final evalNs = json['eval_duration'];
+        Duration? nanos(Object? value) =>
+            value is num ? Duration(microseconds: value ~/ 1000) : null;
         usage = LlmUsage(
           promptTokens: (json['prompt_eval_count'] as num?)?.toInt(),
           completionTokens: (json['eval_count'] as num?)?.toInt(),
-          duration: evalNs is num
-              ? Duration(microseconds: evalNs ~/ 1000)
-              : null,
+          duration: nanos(json['eval_duration']),
+          loadDuration: nanos(json['load_duration']),
+          promptDuration: nanos(json['prompt_eval_duration']),
         );
       }
     }
@@ -216,6 +217,23 @@ class OllamaClient implements LlmClient {
       message.contains('closed by') ||
       message.contains('parse') ||
       message.contains('unexpected');
+
+  /// An empty chat request makes Ollama load the model (with the same
+  /// context size, so the first real request does not reload it).
+  @override
+  Future<void> warmUp() async {
+    try {
+      await _http.postJson(_uri('/api/chat'), {
+        'model': config.model,
+        'messages': const <Object>[],
+        'stream': false,
+        'keep_alive': config.keepAlive,
+        'options': {'num_ctx': config.contextLength},
+      });
+    } catch (_) {
+      // Best effort only.
+    }
+  }
 
   @override
   Future<List<String>> listModels() async {

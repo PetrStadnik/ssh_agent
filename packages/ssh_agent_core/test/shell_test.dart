@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:ssh_agent_core/ssh_agent_core.dart';
@@ -69,5 +70,22 @@ void main() {
       'seq 1 10 | ${limitLines(3)}',
     ]);
     expect(result.stdout, '1\n2\n3\n... [7 more lines not shown]\n');
+  }, testOn: 'posix');
+
+  test('limitLines passes each line on at once', () async {
+    final process = await Process.start('sh', [
+      '-c',
+      '$awkLinewiseSetup\n'
+          '{ echo first; sleep 3; echo second; } | ${limitLines(5)}',
+    ]);
+    // Arrives while the command is still running, not after it ends.
+    final firstLine = await process.stdout
+        .transform(const SystemEncoding().decoder)
+        .transform(const LineSplitter())
+        .first
+        .timeout(const Duration(seconds: 2));
+    expect(firstLine, 'first');
+    process.kill();
+    await process.exitCode;
   }, testOn: 'posix');
 }

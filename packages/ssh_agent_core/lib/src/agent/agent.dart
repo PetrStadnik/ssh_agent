@@ -4,6 +4,7 @@ import 'dart:convert';
 import '../llm/chat_message.dart';
 import '../llm/llm_client.dart';
 import '../llm/text_tool_calls.dart';
+import '../remote/remote_executor.dart';
 import '../remote/remote_session.dart';
 import '../tools/tool.dart';
 import '../tools/tool_registry.dart';
@@ -76,6 +77,8 @@ class Agent {
         controller.add(const AgentCancelled());
       } on LlmException catch (e) {
         controller.add(AgentFailed(e.message));
+      } on RemoteConnectionException catch (e) {
+        controller.add(AgentFailed('SSH: ${e.message}'));
       } catch (e) {
         controller.add(AgentFailed('Neočekávaná chyba: $e'));
       } finally {
@@ -91,6 +94,13 @@ class Agent {
     CancelToken cancel,
     void Function(AgentEvent) emit,
   ) async {
+    if (!session.executor.isConnected) {
+      emit(AgentConnecting(serverName));
+      final stopwatch = Stopwatch()..start();
+      await session.executor.connect();
+      emit(AgentConnected(serverName, stopwatch.elapsed));
+      cancel.throwIfCancelled();
+    }
     final messages = <ChatMessage>[
       ChatMessage.system(
         buildSystemPrompt(
@@ -110,7 +120,13 @@ class Agent {
 
     for (var step = 0; step < config.maxSteps; step++) {
       cancel.throwIfCancelled();
-      final response = await _callModel(messages, schemas, step, cancel, emit);
+      final (response, elapsed) = await _callModel(
+        messages,
+        schemas,
+        step,
+        cancel,
+        emit,
+      );
       var content = response.content;
       var calls = response.toolCalls;
       if (calls.isEmpty && config.parseTextToolCalls) {
@@ -130,6 +146,7 @@ class Agent {
           thinking: response.thinking,
           toolCalls: calls,
           usage: response.usage,
+          elapsed: elapsed,
         ),
       );
       messages.add(
@@ -173,7 +190,7 @@ class Agent {
         'Answer now with what you found and say what remains unverified.',
       ),
     );
-    final response = await _callModel(
+    final (response, elapsed) = await _callModel(
       messages,
       const [],
       config.maxSteps,
@@ -186,20 +203,34 @@ class Agent {
         thinking: response.thinking,
         toolCalls: const [],
         usage: response.usage,
+        elapsed: elapsed,
       ),
     );
     emit(AgentCompleted(response.content));
   }
 
-  Future<LlmResponse> _callModel(
+  /// Calls the model; returns the answer and how long it took.
+  Future<(LlmResponse, Duration)> _callModel(
     List<ChatMessage> messages,
     List<Map<String, Object?>> schemas,
     int step,
     CancelToken cancel,
     void Function(AgentEvent) emit,
   ) async {
+    final toolChars = schemas.isEmpty ? 0 : jsonEncode(schemas).length;
     for (var attempt = 0; ; attempt++) {
-      emit(AgentStepStarted(step, retry: attempt > 0));
+      final chars = messages.fold<int>(
+        toolChars,
+        (sum, m) => sum + m.content.length + m.thinking.length,
+      );
+      emit(
+        AgentStepStarted(
+          step,
+          retry: attempt > 0,
+          approxPromptTokens: (chars / 3.6).round(),
+        ),
+      );
+      final stopwatch = Stopwatch()..start();
       try {
         final request = attempt < 2
             ? messages
@@ -212,7 +243,7 @@ class Agent {
                   'arguments, or answer in plain text.',
                 ),
               ];
-        return await llm.chat(
+        final response = await llm.chat(
           messages: request,
           tools: schemas,
           cancel: cancel,
@@ -222,6 +253,7 @@ class Agent {
                 : AgentTextDelta(delta.text),
           ),
         );
+        return (response, stopwatch.elapsed);
       } on LlmException catch (e) {
         if (!e.retryable || attempt >= config.maxModelRetries) rethrow;
         emit(AgentNotice('Model vrátil chybu, zkouším znovu: ${e.message}'));
@@ -303,7 +335,12 @@ class Agent {
     if (approver != null && !await approver!(prepared)) {
       result = ToolResult.failure('The user declined to run this command.');
     } else {
-      result = await tools.execute(prepared, session);
+      result = await tools.execute(
+        prepared,
+        session,
+        onOutput: (text, isStderr) =>
+            emit(AgentToolOutput(call.id, text, isStderr: isStderr)),
+      );
     }
     final modelText = ToolRegistry.formatForModel(
       result,

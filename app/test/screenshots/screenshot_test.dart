@@ -63,8 +63,14 @@ Conversation sampleConversation() {
     server: 'web-prod',
     promptTokens: 9120,
     completionTokens: 412,
+    connectMs: 412,
     steps: [
       AgentStepRecord(
+        modelMs: 6840,
+        loadMs: 2310,
+        promptTokens: 8930,
+        promptEvalMs: 3120,
+        completionTokens: 96,
         thinking:
             'Uživatel chce vědět, kdy se změnil /etc/passwd. Použiji stat '
             'a pak historii přihlášení z doby změny.',
@@ -95,6 +101,10 @@ Conversation sampleConversation() {
         ],
       ),
       AgentStepRecord(
+        modelMs: 2210,
+        promptTokens: 9410,
+        promptEvalMs: 640,
+        completionTokens: 58,
         tools: [
           ToolInvocation(
             id: '2',
@@ -117,6 +127,10 @@ Conversation sampleConversation() {
         ],
       ),
       AgentStepRecord(
+        modelMs: 5930,
+        promptTokens: 9780,
+        promptEvalMs: 410,
+        completionTokens: 258,
         text:
             'Soubor **`/etc/passwd`** byl naposledy změněn **24. 10. 2026 ve '
             '22:13:05** (časové pásmo serveru UTC+1).\n\n'
@@ -141,18 +155,90 @@ Conversation sampleConversation() {
   );
 }
 
+/// A turn caught while the agent works: the model asked for `find`, which
+/// is still running and streaming its output.
+Conversation liveConversation() {
+  final turn = AgentTurn(
+    model: 'qwen3.5:9b',
+    server: 'web-prod',
+    at: DateTime.now().subtract(const Duration(seconds: 58)),
+  );
+  const findArgs = <String, Object?>{
+    'path': '/var/www',
+    'name': '*.env',
+    'max_depth': 4,
+    'details': true,
+  };
+  final find = ToolRegistry().find('find')!;
+  const thinking =
+      'Uživatel hledá, kde aplikace ukládá nahrané soubory. Nejdřív najdu '
+      'konfigurační soubory aplikace a v nich cestu k úložišti.';
+  for (final event in <AgentEvent>[
+    const AgentConnecting('web-prod'),
+    const AgentConnected('web-prod', Duration(milliseconds: 412)),
+    const AgentStepStarted(1, approxPromptTokens: 9150),
+    const AgentThinkingDelta(thinking),
+    const AgentAssistantMessage(
+      content: '',
+      thinking: thinking,
+      toolCalls: [ToolCall(id: 'f1', name: 'find', arguments: findArgs)],
+      usage: LlmUsage(
+        promptTokens: 9150,
+        completionTokens: 74,
+        loadDuration: Duration(milliseconds: 18400),
+        promptDuration: Duration(milliseconds: 21900),
+      ),
+      elapsed: Duration(milliseconds: 46200),
+    ),
+    AgentToolCallStarted(
+      callId: 'f1',
+      name: 'find',
+      arguments: findArgs,
+      server: 'web-prod',
+      runAs: 'admin',
+      script: find.script(find.parseArguments(findArgs)),
+    ),
+    const AgentToolOutput(
+      'f1',
+      '   1835041      4 -rw-r-----   1 www-data www-data     1204 Sep 12 14:03 /var/www/shop/.env\n'
+          '   1835377      4 -rw-r-----   1 www-data www-data      388 Mar 30  2026 /var/www/shop/config/mail.env\n'
+          '   2097215      4 -rw-------   1 deploy   deploy       2093 Oct 20 18:22 /var/www/blog/.env\n',
+    ),
+    const AgentToolOutput(
+      'f1',
+      "find: '/var/www/shop/storage/private': Permission denied\n",
+      isStderr: true,
+    ),
+  ]) {
+    turn.apply(event);
+  }
+  turn.phaseSince = DateTime.now().subtract(const Duration(seconds: 7));
+  turn.toolCalls.single.startedAt = turn.phaseSince;
+  turn.steps.single.startedAt = turn.at.add(const Duration(seconds: 1));
+  return Conversation(
+    id: 'live',
+    title: 'Kde jsou uložené nahrané soubory?',
+    profileId: 'p1',
+    turns: [UserTurn('Kde přesně aplikace shop ukládá nahrané soubory?'), turn],
+  );
+}
+
 Future<void> shoot(
   WidgetTester tester,
   String name,
   Size size,
   Widget app, {
   Future<void> Function()? before,
+  bool settle = true,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   final key = GlobalKey();
   await tester.pumpWidget(RepaintBoundary(key: key, child: app));
-  await tester.pumpAndSettle();
+  // A running agent animates forever, so it cannot settle.
+  settle
+      ? await tester.pumpAndSettle()
+      : await tester.pump(const Duration(milliseconds: 300));
   if (before != null) {
     await before();
     await tester.pumpAndSettle();
@@ -256,5 +342,19 @@ void main() {
         );
       },
     );
+    final liveState = await createState(
+      profiles: [sampleProfile()],
+      conversations: [liveConversation(), sampleConversation()],
+    );
+    liveState.selectConversation('live');
+    await shoot(
+      tester,
+      '8_live_progress',
+      const Size(1360, 900),
+      SshAgentApp(state: liveState),
+      settle: false,
+    );
+    // Remove the animated view so no timers are left running.
+    await tester.pumpWidget(const SizedBox());
   }, skip: outDir == null);
 }

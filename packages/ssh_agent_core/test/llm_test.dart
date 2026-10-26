@@ -110,6 +110,8 @@ void main() {
               'prompt_eval_count': 120,
               'eval_count': 30,
               'eval_duration': 1500000000,
+              'load_duration': 3200000000,
+              'prompt_eval_duration': 800000000,
             },
           ]) {
             request.response.writeUtf8('${jsonEncode(chunk)}\n');
@@ -140,6 +142,14 @@ void main() {
         });
         expect(response.usage!.promptTokens, 120);
         expect(response.usage!.tokensPerSecond, closeTo(20, 0.01));
+        expect(
+          response.usage!.loadDuration,
+          const Duration(milliseconds: 3200),
+        );
+        expect(
+          response.usage!.promptDuration,
+          const Duration(milliseconds: 800),
+        );
         expect(deltas.where((d) => d.isThinking).length, 2);
 
         expect(server.paths.single, '/api/chat');
@@ -233,6 +243,38 @@ void main() {
       final info = await client.modelInfo();
       expect(info!.supportsTools, isTrue);
       expect(info.contextLength, 262144);
+    });
+
+    test('warm up loads the model with the configured context', () async {
+      server.handler = (request, body) async {
+        request.response.writeUtf8(
+          jsonEncode({
+            'model': 'qwen3.5:9b',
+            'done': true,
+            'done_reason': 'load',
+          }),
+        );
+      };
+      final client = OllamaClient(
+        LlmConfig(
+          baseUrl: server.url,
+          model: 'qwen3.5:9b',
+          contextLength: 16384,
+        ),
+      );
+      await client.warmUp();
+      final body = server.bodies.single;
+      expect(server.paths.single, '/api/chat');
+      expect(body['messages'], isEmpty);
+      expect(body['stream'], false);
+      expect((body['options'] as Map)['num_ctx'], 16384);
+    });
+
+    test('warm up never throws', () async {
+      final client = OllamaClient(
+        const LlmConfig(baseUrl: 'http://127.0.0.1:1'),
+      );
+      await client.warmUp();
     });
 
     test('connection refused gives a hint', () async {

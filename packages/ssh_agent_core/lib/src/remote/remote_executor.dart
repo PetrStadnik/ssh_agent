@@ -1,3 +1,6 @@
+/// Receives output of a running command as it arrives (already decoded).
+typedef OutputListener = void Function(String text, bool isStderr);
+
 /// Abstraction of "a place where a command can be executed".
 ///
 /// The real implementation is [SshExecutor]; tests use fakes. Keeping the
@@ -22,6 +25,8 @@ abstract class RemoteExecutor {
   /// * [pty] - allocate a pseudo terminal (needed by `su`).
   /// * [promptPassword] - when a `Password:` prompt appears on a pty, this
   ///   password is typed once.
+  /// * [onOutput] - called with every piece of output while the command
+  ///   runs, so that the user can watch it live.
   Future<CommandResult> execute(
     String command, {
     Duration timeout = const Duration(seconds: 30),
@@ -29,6 +34,7 @@ abstract class RemoteExecutor {
     String? stdinData,
     bool pty = false,
     String? promptPassword,
+    OutputListener? onOutput,
   });
 
   /// Checks/establishes the connection.

@@ -249,6 +249,7 @@ běžící na vašem PC:
 | „model … not found“ | `ollama pull <model>`; název musí přesně odpovídat (`ollama list`). |
 | „does not support tools“ | Zvolte model s `tools` v `ollama show`. |
 | Odpovědi jsou velmi pomalé | `ollama ps` – běží model na GPU? Zkuste menší model, vypněte přemýšlení, zmenšete kontext. |
+| Dlouho svítí „Model … zpracovává dotaz“ | Řádek „Krok 1 · …“ ukazuje, kolik trvalo načtení modelu a čtení vstupu. První dotaz čte ~9 000 tokenů (zadání + definice nástrojů) – na CPU to jsou i minuty. Aplikace model načítá do paměti hned po spuštění; pomůže GPU, menší model nebo vypnutí nepotřebných skupin nástrojů v Nastavení → Agent (méně definic = kratší vstup). |
 | Model „zapomíná“ výsledky nebo odpovídá nesmyslně po mnoha krocích | Zvětšete kontext (64k), zmenšete „Délku výstupu předanou modelu“, zkuste větší model. |
 | Model volá neexistující nástroje / špatné argumenty | Aplikace mu vrátí chybu a on to obvykle opraví. Pomůže nižší teplota, vypnutí nepotřebných skupin nástrojů, větší model. |
 | Nedostatek VRAM | `OLLAMA_KV_CACHE_TYPE=q8_0`, menší kontext, menší model. |

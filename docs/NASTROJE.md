@@ -103,7 +103,7 @@ Velikost všech definic posílaných modelu: ~23.6 tis. znaků (≈ 6.6 tis. tok
 Volání `grep(pattern: "Failed password", path: "/var/log/auth.log", mode: "fixed")` se na serveru provede jako:
 
 ```sh
-grep -n -H -I -r -F -e 'Failed password' -- '/var/log/auth.log' | awk -v m=150 'NR<=m{print} END{if(NR>m) printf "... [%d more lines not shown]\n", NR-m}'
+grep -n -H -I -r -F -e 'Failed password' -- '/var/log/auth.log' | awk ${AWK_LINEWISE-} -v m=150 'NR<=m{print; fflush()} END{if(NR>m) printf "... [%d more lines not shown]\n", NR-m}'
 ```
 
 Přesný řetězec odeslaný přes SSH (obálka nastaví prostředí, pracovní adresář a použije bash kvůli `pipefail`, jinak POSIX `sh`):
@@ -111,7 +111,8 @@ Přesný řetězec odeslaný přes SSH (obálka nastaví prostředí, pracovní 
 ```sh
 sh -c 'if command -v bash >/dev/null 2>&1; then exec bash -c "$1"; else eval "$1"; fi' sh 'export LC_ALL=C LANG=C PAGER=cat SYSTEMD_PAGER= SYSTEMD_COLORS=0 NO_COLOR=1 TERM=dumb
 (set -o pipefail) 2>/dev/null && set -o pipefail
-grep -n -H -I -r -F -e '\''Failed password'\'' -- '\''/var/log/auth.log'\'' | awk -v m=150 '\''NR<=m{print} END{if(NR>m) printf "... [%d more lines not shown]\n", NR-m}'\'''
+case $(awk -W version </dev/null 2>/dev/null) in *mawk*) AWK_LINEWISE='\''-W interactive'\'' ;; esac
+grep -n -H -I -r -F -e '\''Failed password'\'' -- '\''/var/log/auth.log'\'' | awk ${AWK_LINEWISE-} -v m=150 '\''NR<=m{print; fflush()} END{if(NR>m) printf "... [%d more lines not shown]\n", NR-m}'\'''
 ```
 
 Obojí vidíte v aplikaci u každého volání (karta funkce → ikona „rozbalit“).

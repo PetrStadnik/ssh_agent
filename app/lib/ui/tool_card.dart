@@ -21,7 +21,9 @@ class ToolCallCard extends StatefulWidget {
 }
 
 class _ToolCallCardState extends State<ToolCallCard> {
-  late bool _expanded = widget.initiallyExpanded;
+  /// A running command is always shown open so that its output is visible.
+  late bool _expanded =
+      widget.initiallyExpanded || widget.call.status == ToolStatus.running;
   bool _showAll = false;
   bool _showFullCommand = false;
 
@@ -121,14 +123,10 @@ class _ToolCallCardState extends State<ToolCallCard> {
                     const SizedBox(height: 6),
                     _outputBlock(context),
                   ],
-                  if (running)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Probíhá na serveru…',
-                        style: TextStyle(fontSize: 12.5, color: c.textTertiary),
-                      ),
-                    ),
+                  if (running) ...[
+                    const SizedBox(height: 6),
+                    _liveBlock(context),
+                  ],
                 ],
               ),
             ),
@@ -287,7 +285,8 @@ class _ToolCallCardState extends State<ToolCallCard> {
                 child: Text(
                   _showAll
                       ? 'Zobrazit méně'
-                      : 'Zobrazit vše (${lines.length} řádků)',
+                      : 'Zobrazit vše (${lines.length} '
+                            '${plural(lines.length, 'řádek', 'řádky', 'řádků')})',
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
@@ -320,6 +319,110 @@ class _ToolCallCardState extends State<ToolCallCard> {
                     style: monoStyle(context, size: 12, color: c.warning),
                   ),
                 ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static const _liveLines = 14;
+
+  /// Output received so far while the command still runs.
+  Widget _liveBlock(BuildContext context) {
+    final c = context.colors;
+    final call = widget.call;
+    String tail(String text, int lines) {
+      final all = text.trimRight().split('\n');
+      return all.length <= lines
+          ? all.join('\n')
+          : all.sublist(all.length - lines).join('\n');
+    }
+
+    final out = call.liveStdout.trimRight();
+    final err = call.liveStderr.trimRight();
+    return Container(
+      key: const Key('live-output'),
+      decoration: BoxDecoration(
+        color: c.code,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 2),
+            child: SecondsTicker(
+              builder: (context) => Row(
+                children: [
+                  SizedBox(
+                    width: 10,
+                    height: 10,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.6,
+                      color: c.accent,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      [
+                        'Běží na serveru',
+                        if (call.startedAt != null)
+                          elapsedSince(call.startedAt!),
+                        if (call.liveLines > 0)
+                          '${formatCount(call.liveLines)} '
+                              '${plural(call.liveLines, 'řádek', 'řádky', 'řádků')}',
+                        if (call.liveBytes > 0) formatBytes(call.liveBytes),
+                      ].join(' · '),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: c.textTertiary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (out.isEmpty && err.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
+              child: SecondsTicker(
+                builder: (context) {
+                  final started = call.startedAt;
+                  final quiet =
+                      started != null &&
+                      DateTime.now().difference(started).inSeconds >= 5;
+                  return Text(
+                    quiet
+                        ? 'Čekám na výstup… Příkaz zatím nic nevypsal – '
+                              'některé programy posílají výstup po větších '
+                              'blocích nebo až na konci.'
+                        : 'Čekám na výstup…',
+                    style: TextStyle(fontSize: 12, color: c.textTertiary),
+                  );
+                },
+              ),
+            ),
+          if (out.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Text(
+                  tail(out, _liveLines),
+                  style: monoStyle(context, size: 12),
+                ),
+              ),
+            ),
+          if (err.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+              child: Text(
+                tail(err, 5),
+                style: monoStyle(context, size: 12, color: c.warning),
               ),
             ),
         ],
