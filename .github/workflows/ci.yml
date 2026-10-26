@@ -25,7 +25,7 @@ jobs:
         working-directory: .
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq openssh-server acl lsof file cron >/dev/null
+          sudo apt-get install -y -qq openssh-server acl lsof file cron ufw iputils-ping iputils-tracepath dnsutils >/dev/null
           sudo useradd -m -s /bin/bash -c 'Agent Test,,,,agent@example.com' agent
           echo '*/5 * * * * /usr/bin/uptime' | sudo crontab -u agent -
           echo 'agent:agentpass' | sudo chpasswd

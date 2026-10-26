@@ -2,14 +2,20 @@
 
 ## Co agent nemůže
 
-Agent nemá k dispozici obecný příkaz shellu. Smí volat **jen 48 předdefinovaných
+Agent nemá k dispozici obecný příkaz shellu. Smí volat **jen 54 předdefinovaných
 funkcí** ([NASTROJE.md](NASTROJE.md)), z nichž žádná:
 
 - nevytváří, nemění, nepřesouvá ani nemaže soubory a adresáře,
 - nemění oprávnění, vlastníky, ACL ani atributy,
 - nespouští, nezastavuje ani nerestartuje služby, neukončuje procesy,
 - neinstaluje balíčky, nemění uživatele, cron, firewall ani síť,
-- nestahuje nic z internetu a nikam neposílá data.
+- nestahuje nic z internetu a nikam neposílá data ze serveru.
+
+Výjimkou jsou jen síťové diagnostiky (`ping`, `dns_lookup`, `port_check`,
+`internet_check`), které ze serveru odešlou pár malých testovacích paketů: ICMP ping,
+DNS dotaz nebo otevření a hned zavření TCP spojení (`internet_check` kontaktuje
+1.1.1.1, example.com a OpenDNS kvůli veřejné IP). Nic se tím nemění ani nestahuje.
+Pokud ani to nechcete, vypněte skupinu **Síť** v Nastavení → Agent.
 
 ## Jak je to zajištěno
 

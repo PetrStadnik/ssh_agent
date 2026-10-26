@@ -139,5 +139,15 @@ final RegExp containerNamePattern = RegExp(
 /// Executable name for `which`.
 final RegExp commandNamePattern = RegExp(r'^[A-Za-z0-9._+-]{1,100}$');
 
+/// Host name, IPv4 or IPv6 address (never starts with `-`).
+final RegExp hostPattern = RegExp(
+  r'^([A-Za-z0-9][A-Za-z0-9._-]{0,252}|[0-9A-Fa-f:][0-9A-Fa-f:.]{1,44})$',
+);
+
+/// Network interface name (`eth0`, `ens3`, `wg0`, `br-1a2b`, `eth0.100`).
+final RegExp interfaceNamePattern = RegExp(
+  r'^[A-Za-z0-9][A-Za-z0-9_.:-]{0,15}$',
+);
+
 /// Date expression accepted by `journalctl --since` and `last --since`.
 final RegExp timeExpressionPattern = RegExp(r'^[0-9A-Za-z :.+-]{1,40}$');

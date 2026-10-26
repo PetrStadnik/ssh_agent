@@ -166,6 +166,34 @@ void main() {
         : false,
   );
 
+  test('network tools see the SSH server port', () async {
+    session.cwd = null;
+    session.runAs = null;
+    Future<ToolResult> run(String tool, Map<String, Object?> args) =>
+        registry.execute(registry.prepare('n', tool, args, session), session);
+    final port = int.parse(env['SSH_TEST_PORT'] ?? '22');
+
+    final listening = await run('ports', {'port': port});
+    expect(listening.stdout, contains(':$port'));
+    expect(listening.stdout, contains('ALL interfaces'));
+    // Our own SSH session is an incoming connection to that port.
+    final established = await run('ports', {
+      'state': 'established',
+      'port': port,
+    });
+    expect(established.stdout, contains('incoming'));
+
+    final open = await run('port_check', {'host': '127.0.0.1', 'port': port});
+    expect(open.exitCode, 0);
+    expect(open.stdout, contains('OPEN'));
+    final closed = await run('port_check', {'host': '127.0.0.1', 'port': 1});
+    expect(closed.exitCode, 1);
+    expect(closed.stdout, contains('CLOSED'));
+
+    final ifconfig = await run('ifconfig', {});
+    expect(ifconfig.stdout, contains('127.0.0.1'));
+  }, skip: host == null ? 'SSH_TEST_HOST not set' : false);
+
   test('output is delivered live while the command runs', () async {
     final chunks = <(Duration, String)>[];
     final stopwatch = Stopwatch()..start();

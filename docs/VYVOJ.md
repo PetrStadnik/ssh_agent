@@ -61,7 +61,7 @@ SCREENSHOT_DIR=/tmp/shots flutter test test/screenshots
 
 ### Integrační testy proti skutečnému SSH serveru
 
-Spustí všech 48 nástrojů, `cd`, `switch_user` (sudo i su s heslem), přihlášení heslem,
+Spustí všech 54 nástrojů, `cd`, `switch_user` (sudo i su s heslem), přihlášení heslem,
 zašifrovaný klíč, ověření otisku klíče serveru a pokusy o shell injection.
 
 Nejjednodušší je testovací kontejner:
@@ -69,7 +69,7 @@ Nejjednodušší je testovací kontejner:
 ```bash
 docker run -d --name agent-sshd -p 2222:22 ubuntu:24.04 sleep infinity
 docker exec agent-sshd bash -c '
-  apt-get update -qq && apt-get install -y -qq openssh-server sudo acl lsof file iproute2 cron >/dev/null &&
+  apt-get update -qq && apt-get install -y -qq openssh-server sudo acl lsof file iproute2 cron ufw iputils-ping iputils-tracepath dnsutils >/dev/null &&
   useradd -m -s /bin/bash -c "Agent Test,,,,agent@example.com" agent && echo agent:agentpass | chpasswd && echo root:rootpass | chpasswd &&
   echo "*/5 * * * * /usr/bin/uptime" | crontab -u agent - &&
   echo "agent ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/agent &&

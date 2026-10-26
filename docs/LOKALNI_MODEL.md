@@ -142,7 +142,7 @@ dart run ssh_agent_core:ssh_agent --host 203.0.113.10 --user admin `
 
 | Požadavek | Proč |
 |---|---|
-| **Spolehlivé volání funkcí (tool calling)** | Agent má 48 nástrojů; model musí vybrat správný, vyplnit platné JSON argumenty a nevymýšlet si neexistující. |
+| **Spolehlivé volání funkcí (tool calling)** | Agent má 54 nástrojů; model musí vybrat správný, vyplnit platné JSON argumenty a nevymýšlet si neexistující. |
 | **Vícekrokové uvažování** | Typický dotaz = 2–6 volání (např. `stat` → `last` → `journal`), model musí číst výstupy a rozhodnout o dalším kroku. |
 | **Práce s dlouhým textem** | Výstupy `ls`, logů a `ps` jsou dlouhé; definice nástrojů samy zaberou ~6,6k tokenů. Potřeba je kontext ≥ 16k, ideálně 32k+. |
 | **Čeština** | Dotazy i odpovědi jsou česky. |
@@ -192,7 +192,7 @@ Nejlepší test je váš vlastní server. Položte každému modelu stejné otá
 3. „Jaká oprávnění má uživatel www-data k /var/www?“ (`user_info`, `permissions`, `check_access`)
 4. „Kde přesně ukládá nginx logy a konfiguraci?“ (`service_status`, `grep`/`find`)
 5. „Obsahuje /etc/ssh/sshd_config povolené přihlášení roota heslem?“ (`grep` nebo `ssh_access`)
-6. „Které procesy poslouchají na síti a pod jakým uživatelem?“ (`network`, `ps`)
+6. „Které procesy poslouchají na síti a pod jakým uživatelem?“ (`ports`, `ps`)
 
 Pod každou odpovědí vidíte model, počet příkazů a tokenů – snadno porovnáte i rychlost.
 
@@ -249,7 +249,7 @@ běžící na vašem PC:
 | „model … not found“ | `ollama pull <model>`; název musí přesně odpovídat (`ollama list`). |
 | „does not support tools“ | Zvolte model s `tools` v `ollama show`. |
 | Odpovědi jsou velmi pomalé | `ollama ps` – běží model na GPU? Zkuste menší model, vypněte přemýšlení, zmenšete kontext. |
-| Dlouho svítí „Model … zpracovává dotaz“ | Řádek „Krok 1 · …“ ukazuje, kolik trvalo načtení modelu a čtení vstupu. První dotaz čte ~9 000 tokenů (zadání + definice nástrojů) – na CPU to jsou i minuty. Aplikace model načítá do paměti hned po spuštění; pomůže GPU, menší model nebo vypnutí nepotřebných skupin nástrojů v Nastavení → Agent (méně definic = kratší vstup). |
+| Dlouho svítí „Model … zpracovává dotaz“ | Řádek „Krok 1 · …“ ukazuje, kolik trvalo načtení modelu a čtení vstupu. První dotaz čte ~10 000 tokenů (zadání + definice nástrojů, z toho ~7 800 definice) – na CPU to jsou i minuty. Aplikace model načítá do paměti hned po spuštění; pomůže GPU, menší model nebo vypnutí nepotřebných skupin nástrojů v Nastavení → Agent (méně definic = kratší vstup). |
 | Model „zapomíná“ výsledky nebo odpovídá nesmyslně po mnoha krocích | Zvětšete kontext (64k), zmenšete „Délku výstupu předanou modelu“, zkuste větší model. |
 | Model volá neexistující nástroje / špatné argumenty | Aplikace mu vrátí chybu a on to obvykle opraví. Pomůže nižší teplota, vypnutí nepotřebných skupin nástrojů, větší model. |
 | Nedostatek VRAM | `OLLAMA_KV_CACHE_TYPE=q8_0`, menší kontext, menší model. |

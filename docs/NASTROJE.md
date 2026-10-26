@@ -2,9 +2,9 @@
 
 > Soubor je generovaný z kódu (`packages/ssh_agent_core/tool/gen_tools_doc.dart`), needitujte ho ručně.
 
-Agent smí volat **jen** tyto předdefinované funkce (48). Všechny pouze čtou – žádná nevytváří, nemění ani nemaže soubory, nemění oprávnění, nespouští/nezastavuje služby ani neukončuje procesy. Každý argument od modelu je validován a v příkazu je vždy v uvozovkách (viz [BEZPECNOST.md](BEZPECNOST.md)). Popisy pro model jsou anglicky, protože lokální modely angličtině v definicích nástrojů rozumí nejspolehlivěji.
+Agent smí volat **jen** tyto předdefinované funkce (54). Všechny pouze čtou – žádná nevytváří, nemění ani nemaže soubory, nemění oprávnění, nespouští/nezastavuje služby ani neukončuje procesy. Každý argument od modelu je validován a v příkazu je vždy v uvozovkách (viz [BEZPECNOST.md](BEZPECNOST.md)). Popisy pro model jsou anglicky, protože lokální modely angličtině v definicích nástrojů rozumí nejspolehlivěji.
 
-Velikost všech definic posílaných modelu: ~25.0 tis. znaků (≈ 6.9 tis. tokenů). Skupiny lze v nastavení vypnout.
+Velikost všech definic posílaných modelu: ~28.2 tis. znaků (≈ 7.8 tis. tokenů). Skupiny lze v nastavení vypnout.
 
 ## Relace a navigace
 
@@ -83,7 +83,13 @@ Velikost všech definic posílaných modelu: ~25.0 tis. znaků (≈ 6.9 tis. tok
 
 | Funkce | Co dělá | Parametry |
 |---|---|---|
-| `network` | Síť: naslouchající porty, spojení, rozhraní, routy, firewall, DNS | `view` (listening\|connections\|interfaces\|routes\|firewall\|dns, výchozí `listening`) |
+| `ports` | Otevřené porty (kdo naslouchá a zda zvenku) a aktivní spojení | `state` (listening\|established, výchozí `listening`)<br>`port` (číslo) |
+| `ifconfig` | Síťová rozhraní jako ipconfig: IP adresy, MAC, brána, DNS servery | `interface` (text)<br>`details` (ano/ne, výchozí `false`) |
+| `firewall` | Firewall: ufw status, firewalld, nftables, iptables, fail2ban | `which` (all\|ufw\|firewalld\|nftables\|iptables\|fail2ban, výchozí `all`) |
+| `dns_lookup` | DNS: přeloží jméno na IP (nebo IP na jméno), záznamy MX, TXT… | `name` (text) **povinný**<br>`type` (A\|AAAA\|MX\|TXT\|NS\|CNAME\|SOA\|ANY, výchozí `A`)<br>`server` (text) |
+| `ping` | Ping na hostitele, případně trasa (traceroute / tracepath) | `host` (text) **povinný**<br>`count` (číslo, výchozí `4`)<br>`trace` (ano/ne, výchozí `false`) |
+| `port_check` | Je port na hostiteli dostupný ze serveru? (TCP spojení) | `host` (text) **povinný**<br>`port` (číslo) **povinný**<br>`timeout_seconds` (číslo, výchozí `3`) |
+| `internet_check` | Má server internet? Brána, DNS, ping, HTTPS, proxy, veřejná IP | – |
 
 ## Balíčky a programy
 

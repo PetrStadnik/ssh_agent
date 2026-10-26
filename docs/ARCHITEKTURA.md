@@ -15,7 +15,7 @@
 │  agent/   Agent – smyčka model → nástroje → model; AgentTurn/Conversation          │
 │  llm/     OllamaClient (/api/chat) · OpenAiCompatibleClient (/v1/chat/completions)  │
 │           parser volání nástrojů zapsaných textem                                   │
-│  tools/   48 read-only nástrojů, validace argumentů, sestavení příkazu, ToolRegistry│
+│  tools/   54 read-only nástrojů, validace argumentů, sestavení příkazu, ToolRegistry│
 │  remote/  RemoteSession (pracovní adresář, su/sudo) · SshExecutor (dartssh2)        │
 └───────────────┬───────────────────────────────────────────────┬─────────────────────┘
                 │ HTTP (localhost nebo LAN)                     │ SSH (exec kanály)
