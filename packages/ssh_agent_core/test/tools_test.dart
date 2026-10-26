@@ -186,6 +186,26 @@ void main() {
     }
   });
 
+  test('crontab is only ever called to list (-l)', () {
+    // Without -l, crontab replaces the crontab (from stdin or a file).
+    // (A path such as /etc/crontab is a file, not the command.)
+    final call = RegExp(r'(?<!command -v )(?<![/\w.-])crontab\b(?!\s+-l\b)');
+    for (final tool in allTools) {
+      final args = {...samples[tool.name]!};
+      if (tool.params.any((p) => p.name == 'user')) args['user'] = 'alice';
+      for (final variant in [samples[tool.name]!, args]) {
+        final script = registry
+            .prepare('x', tool.name, variant, session)
+            .script;
+        expect(
+          call.firstMatch(unquotedText(script)),
+          isNull,
+          reason: '${tool.name}: $script',
+        );
+      }
+    }
+  });
+
   test('hostile argument values never produce a modifying command', () {
     var built = 0;
     for (final tool in registry.available(session)) {

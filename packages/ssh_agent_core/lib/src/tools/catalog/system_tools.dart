@@ -467,6 +467,59 @@ true''',
       );
     },
   ),
+  ToolDefinition(
+    name: 'crontab',
+    category: ToolCategory.services,
+    summary: 'Crontaby všech uživatelů (crontab -l)',
+    description:
+        'Show user crontabs with `crontab -l`: by default of every user '
+        'account on the server (`crontab -l -u <user>` for each), or of one '
+        'user. Reading crontabs of other users needs root (use switch_user '
+        'first); without root only the current user is shown. System-wide '
+        'jobs (/etc/crontab, /etc/cron.d, systemd timers) are in cron_jobs.',
+    params: [
+      ToolParam.string('user', 'Only this user (default: all users).'),
+      ToolParam.boolean(
+        'include_comments',
+        'Also show comment and empty lines.',
+        defaultValue: false,
+      ),
+    ],
+    timeout: const Duration(seconds: 60),
+    script: (a) {
+      final users = a.has('user')
+          ? _user(a)
+          : r'''$(if [ "$(id -u)" = 0 ]; then (getent passwd 2>/dev/null || cat /etc/passwd) | cut -d: -f1 | awk '!seen[$0]++'; else id -un; fi)''';
+      final filter = a.flag('include_comments')
+          ? 'cat'
+          : "grep -v -E '^[[:space:]]*(#|\$)'";
+      return fill(
+        r'''command -v crontab >/dev/null 2>&1 || { echo 'The crontab command is not available on this server.' >&2; exit 127; }
+me=$(id -un)
+if [ "$(id -u)" != 0 ]; then
+  echo "Not root: only the crontab of $me can be read (switch_user root to see all users)."
+fi
+none=''
+for u in @USERS@; do
+  if [ "$u" = "$me" ]; then out=$(crontab -l 2>&1); else out=$(crontab -l -u "$u" 2>&1); fi
+  rc=$?
+  if [ $rc -ne 0 ]; then
+    case $out in
+      *'no crontab'*) none="$none $u" ;;
+      *) echo "=== $u: $out" ;;
+    esac
+    continue
+  fi
+  echo "=== $u ==="
+  jobs=$(printf '%s\n' "$out" | @FILTER@)
+  if [ -n "$jobs" ]; then printf '%s\n' "$jobs"; else echo '(only comments)'; fi
+done
+[ -n "$none" ] && echo "No crontab:$none"
+true''',
+        {'USERS': users, 'FILTER': filter},
+      );
+    },
+  ),
 ];
 
 final List<ToolDefinition> networkTools = [

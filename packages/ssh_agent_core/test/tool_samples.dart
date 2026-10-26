@@ -43,6 +43,7 @@ final Map<String, Map<String, Object?>> samples = {
   'service_status': {'name': 'ssh'},
   'journal': {'lines': 5},
   'cron_jobs': {},
+  'crontab': {},
   'network': {'view': 'listening'},
   'installed_packages': {'filter': 'openssh', 'limit': 10},
   'package_owner': {'path': '/bin/ls', 'verify': true},

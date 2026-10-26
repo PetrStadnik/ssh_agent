@@ -2,9 +2,9 @@
 
 > Soubor je generovaný z kódu (`packages/ssh_agent_core/tool/gen_tools_doc.dart`), needitujte ho ručně.
 
-Agent smí volat **jen** tyto předdefinované funkce (47). Všechny pouze čtou – žádná nevytváří, nemění ani nemaže soubory, nemění oprávnění, nespouští/nezastavuje služby ani neukončuje procesy. Každý argument od modelu je validován a v příkazu je vždy v uvozovkách (viz [BEZPECNOST.md](BEZPECNOST.md)). Popisy pro model jsou anglicky, protože lokální modely angličtině v definicích nástrojů rozumí nejspolehlivěji.
+Agent smí volat **jen** tyto předdefinované funkce (48). Všechny pouze čtou – žádná nevytváří, nemění ani nemaže soubory, nemění oprávnění, nespouští/nezastavuje služby ani neukončuje procesy. Každý argument od modelu je validován a v příkazu je vždy v uvozovkách (viz [BEZPECNOST.md](BEZPECNOST.md)). Popisy pro model jsou anglicky, protože lokální modely angličtině v definicích nástrojů rozumí nejspolehlivěji.
 
-Velikost všech definic posílaných modelu: ~23.6 tis. znaků (≈ 6.6 tis. tokenů). Skupiny lze v nastavení vypnout.
+Velikost všech definic posílaných modelu: ~25.0 tis. znaků (≈ 6.9 tis. tokenů). Skupiny lze v nastavení vypnout.
 
 ## Relace a navigace
 
@@ -45,7 +45,7 @@ Velikost všech definic posílaných modelu: ~23.6 tis. znaků (≈ 6.6 tis. tok
 |---|---|---|
 | `permissions` | Oprávnění cesty: vlastník, režim, každý adresář na cestě, ACL | `path` (text) **povinný** |
 | `check_access` | Může uživatel X číst / zapisovat / spouštět cestu Y? | `user` (text) **povinný**<br>`path` (text) **povinný** |
-| `list_users` | Seznam uživatelů (UID, domovský adresář, shell) | `only_login_users` (ano/ne, výchozí `false`) |
+| `list_users` | Všichni uživatelé a jejich vlastnosti: jméno, e-mail, heslo, přihlášení heslem (i přes SSH), klíče, skupiny | `only_login_users` (ano/ne, výchozí `false`)<br>`include_system` (ano/ne, výchozí `false`)<br>`limit` (číslo, výchozí `100`) |
 | `user_info` | Detail uživatele: skupiny, domov, poslední přihlášení, sudo | `user` (text) **povinný** |
 | `list_groups` | Skupiny a jejich členové | `group` (text) |
 | `sudo_rights` | Sudo oprávnění, členové admin skupin, pravidla sudoers | `user` (text) |
@@ -77,6 +77,7 @@ Velikost všech definic posílaných modelu: ~23.6 tis. znaků (≈ 6.6 tis. tok
 | `service_status` | Stav služby, její konfigurace, spouštěný příkaz a poslední logy | `name` (text) **povinný**<br>`show_unit_file` (ano/ne, výchozí `false`) |
 | `journal` | Systémový log (journalctl) podle služby, času, priority, textu | `unit` (text)<br>`since` (text)<br>`until` (text)<br>`priority` (emerg\|alert\|crit\|err\|warning\|notice\|info\|debug)<br>`grep` (text)<br>`kernel` (ano/ne, výchozí `false`)<br>`current_boot` (ano/ne, výchozí `false`)<br>`lines` (číslo, výchozí `100`) |
 | `cron_jobs` | Naplánované úlohy: crontab, cron.d, systemd timery, at | `user` (text) |
+| `crontab` | Crontaby všech uživatelů (crontab -l) | `user` (text)<br>`include_comments` (ano/ne, výchozí `false`) |
 
 ## Síť
 

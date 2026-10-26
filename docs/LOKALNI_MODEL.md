@@ -142,7 +142,7 @@ dart run ssh_agent_core:ssh_agent --host 203.0.113.10 --user admin `
 
 | Požadavek | Proč |
 |---|---|
-| **Spolehlivé volání funkcí (tool calling)** | Agent má 47 nástrojů; model musí vybrat správný, vyplnit platné JSON argumenty a nevymýšlet si neexistující. |
+| **Spolehlivé volání funkcí (tool calling)** | Agent má 48 nástrojů; model musí vybrat správný, vyplnit platné JSON argumenty a nevymýšlet si neexistující. |
 | **Vícekrokové uvažování** | Typický dotaz = 2–6 volání (např. `stat` → `last` → `journal`), model musí číst výstupy a rozhodnout o dalším kroku. |
 | **Práce s dlouhým textem** | Výstupy `ls`, logů a `ps` jsou dlouhé; definice nástrojů samy zaberou ~6,6k tokenů. Potřeba je kontext ≥ 16k, ideálně 32k+. |
 | **Čeština** | Dotazy i odpovědi jsou česky. |

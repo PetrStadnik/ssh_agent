@@ -28,12 +28,14 @@ a velikostí vstupu), běžící příkaz a jeho výstup ze serveru řádek po �
 - **Více SSH připojení** – servery přepnete jedním klikem v panelu nebo přímo
   v poli pro dotaz. Přihlášení klíčem (i šifrovaným) nebo heslem, ověření otisku
   klíče serveru, hesla a klíče v zabezpečeném úložišti systému.
-- **47 předdefinovaných funkcí jen pro čtení** – pohyb po serveru (`cd`, `pwd`,
+- **48 předdefinovaných funkcí jen pro čtení** – pohyb po serveru (`cd`, `pwd`,
   `ls -la`, `tree`), soubory (`cat`, `head`, `tail`, `read_lines`, `grep`, `find`,
   `stat`, `diff`, komprimované logy…), uživatelé a oprávnění (`whoami`, `id`,
-  `user_info`, `permissions`/`namei`/ACL, `check_access`, `sudo_rights`,
-  `ssh_access`), přihlášení (`last`, `lastb`, `w`), procesy (`ps`, `lsof`,
-  detail procesu), služby a logy (`systemctl status`, `journalctl`, cron), síť,
+  `list_users` – všichni uživatelé se jménem, e‑mailem, stavem hesla a tím, zda se
+  mohou přihlásit heslem i přes SSH, `user_info`, `permissions`/`namei`/ACL,
+  `check_access`, `sudo_rights`, `ssh_access`), přihlášení (`last`, `lastb`, `w`),
+  procesy (`ps`, `lsof`, detail procesu), služby a logy (`systemctl status`,
+  `journalctl`, `crontab -l` všech uživatelů, cron, systemd timery), síť,
   balíčky, Docker, **`switch_user`** (su/sudo). Úplný seznam: [docs/NASTROJE.md](docs/NASTROJE.md).
 - **Nic nemění** – žádná funkce nezapisuje, nemaže, nemění oprávnění ani služby;
   argumenty od modelu se vždy bezpečně escapují (ověřeno testy). Viz

@@ -2,7 +2,7 @@
 
 ## Co agent nemůže
 
-Agent nemá k dispozici obecný příkaz shellu. Smí volat **jen 47 předdefinovaných
+Agent nemá k dispozici obecný příkaz shellu. Smí volat **jen 48 předdefinovaných
 funkcí** ([NASTROJE.md](NASTROJE.md)), z nichž žádná:
 
 - nevytváří, nemění, nepřesouvá ani nemaže soubory a adresáře,
@@ -26,6 +26,7 @@ funkcí** ([NASTROJE.md](NASTROJE.md)), z nichž žádná:
    - žádný sestavený skript neobsahuje zapisující příkazy (`rm`, `mv`, `cp`, `chmod`,
      `tee`, `dd`, `sed -i`, `find -delete/-exec`, `systemctl start/stop`, `crontab -e`,
      `kill`, …) ani přesměrování do souboru,
+   - `crontab` se nikde nevolá jinak než s `-l` (bez něj by crontab nahradil),
    - pro každý textový parametr každé funkce se zkouší nepřátelské hodnoty a ověřuje,
      že po rozboru shellem zůstanou celé v uvozovkách,
    - integrační test spouští útoky (`'; touch /tmp/x; '`, `$(touch …)`, …) proti

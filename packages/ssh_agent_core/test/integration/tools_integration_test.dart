@@ -115,6 +115,57 @@ void main() {
         : false,
   );
 
+  test(
+    'crontab and list_users see all users as root',
+    () async {
+      session.cwd = null;
+      session.runAs = null;
+      Future<ToolResult> run(String tool, [Map<String, Object?>? args]) =>
+          registry.execute(
+            registry.prepare('t', tool, args ?? {}, session),
+            session,
+          );
+
+      // Without root the password state cannot be read.
+      final plain = await run('list_users');
+      expect(plain.stdout, contains('Not root:'));
+      expect(
+        plain.stdout,
+        contains('unknown (needs root to read /etc/shadow)'),
+      );
+
+      await run('switch_user', {'user': 'root'});
+      expect(session.runAs, 'root');
+      try {
+        final cron = await run('crontab');
+        final cronText = ToolRegistry.formatForModel(cron);
+        expect(cron.exitCode, 0, reason: cronText);
+        expect(cron.stdout, contains('=== agent ==='), reason: cronText);
+        expect(cron.stdout, contains('/usr/bin/uptime'), reason: cronText);
+        expect(cron.stdout, contains('No crontab:'), reason: cronText);
+
+        final users = await run('list_users');
+        final usersText = ToolRegistry.formatForModel(users);
+        expect(users.exitCode, 0, reason: usersText);
+        final agent = users.stdout
+            .split('\n')
+            .skipWhile((l) => !l.startsWith('agent  uid='))
+            .take(7)
+            .join('\n');
+        expect(agent, contains('agent@example.com (GECOS)'), reason: usersText);
+        expect(agent, contains('password: set'), reason: usersText);
+        expect(agent, contains('password login: local yes; SSH '));
+        expect(agent, isNot(contains('unknown')), reason: usersText);
+        expect(agent, contains('(key login allowed)'), reason: usersText);
+      } finally {
+        await run('switch_user', {'user': '-'});
+      }
+    },
+    skip: host == null || env['SSH_TEST_SUDO'] != '1'
+        ? 'needs SSH_TEST_HOST and SSH_TEST_SUDO=1'
+        : false,
+  );
+
   test('output is delivered live while the command runs', () async {
     final chunks = <(Duration, String)>[];
     final stopwatch = Stopwatch()..start();
